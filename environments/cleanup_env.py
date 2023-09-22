@@ -2,7 +2,6 @@ from __future__ import annotations
 import random
 import numpy as np
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
-from matplotlib import pyplot as plt
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
@@ -17,20 +16,27 @@ wasteSpawnProbability = 0.5
 appleRespawnProbability = 0.05
 potential_waste_area = 6 * 25
 
+
 class CleanupEnv(MultiAgentEnv):
     """
-    Cleanup environment
+    Cleanup environment. In this game, the agents must clean up the dirt from the river before apples can spawn.
+    Agent reward is only given for eating apples, meaning the agents must learn to clean up the dirt first and
+    must learn to balance their individual rewards with the collective goal of cleaning up the river.
     """
 
     def __init__(self, num_agents=5):
         """
         Initialise the environment.
         """
+        super().__init__()
         self.num_agents = num_agents
         self.timestamp = 0
 
-        self.action_space = Discrete(4)
-        self.observation_space = Tuple((Box(low=0, high=25, shape=(self.num_agents, 2), dtype=np.int32), Box(low=-1, high=1, shape=(25, 18), dtype=np.int32)))
+        self.action_space = Discrete(4)  # directional movement
+        self.observation_space = Tuple(
+            (Box(low=0, high=25, shape=(self.num_agents, 2), dtype=np.int32),  # agent positions
+                Box(low=-1, high=1, shape=(25, 18), dtype=np.int32))  # map grid
+        )
         self.agents = {}
         self.setup_agents()
 
@@ -54,10 +60,11 @@ class CleanupEnv(MultiAgentEnv):
             agent = CleanupAgent(agent_id, spawn_point)
             self.agents[agent_id] = agent
 
-    def reset(self, seed: int | None = None, options: dict = dict()) -> tuple:
+    def reset(self, seed: int | None = None, options: dict = None) -> tuple:
         """
         Reset the environment.
         """
+        options = options if options is not None else dict()
         # Set seed
         super().reset(seed=seed)
         self.timestamp = 0
@@ -179,11 +186,13 @@ class CleanupEnv(MultiAgentEnv):
         # spawn one waste point, only one can spawn per step
         if self.num_dirt < potential_waste_area:
             dirt_spawn = [random.randint(0, 24), random.randint(0, 5)]
-            if self.map[dirt_spawn[0]][dirt_spawn[1]] != -1:
-                rand_num = np.random.rand(1)[0]
-                if rand_num < self.current_waste_spawn_prob and (dirt_spawn[0], dirt_spawn[1]) not in has_agent:
-                    self.map[dirt_spawn[0]][dirt_spawn[1]] = -1
-                    self.num_dirt += 1
+            while self.map[dirt_spawn[0]][dirt_spawn[1]] == -1:  # do not spawn on already existing dirt
+                dirt_spawn = [random.randint(0, 24), random.randint(0, 5)]
+
+            rand_num = np.random.rand(1)[0]
+            if rand_num < self.current_waste_spawn_prob and (dirt_spawn[0], dirt_spawn[1]) not in has_agent:
+                self.map[dirt_spawn[0]][dirt_spawn[1]] = -1
+                self.num_dirt += 1
 
     def render(self):
         """
