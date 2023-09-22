@@ -1,0 +1,5 @@
+ray
+gymnasium
+matplotlib
+seaborn
+numpy
