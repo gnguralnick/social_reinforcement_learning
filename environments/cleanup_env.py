@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from ray.rllib.env import MultiAgentEnv
 
-from social_reinforcement_learning.agent import CleanupAgent
-# from social-reinforcement-learning.agent import CleaupAgent
+from agents.cleanup_agent import CleanupAgent
 
 thresholdDepletion = 0.4
 thresholdRestoration = 0.0
