@@ -9,11 +9,8 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from ray.rllib.env import MultiAgentEnv
 
-from agent import CleanupAgent
+from social_reinforcement_learning.agent import CleanupAgent
 # from social-reinforcement-learning.agent import CleaupAgent
-
-
-NearBy = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
 
 thresholdDepletion = 0.4
 thresholdRestoration = 0.0
@@ -193,17 +190,24 @@ class CleanupEnv(MultiAgentEnv):
         """
         Render the environment.
         """
-        labels = [[""]*18 for i in range(25)]
-        for agent in self.agents.values():
-            labels[agent.pos[0]][agent.pos[1]] += "{}({}) ".format(agent.agent_id, agent.reward)
         cmap = colors.ListedColormap(['tab:brown', 'white', 'green'])
         bounds = [-1, -0.5, 0.5, 1]
         norm = colors.BoundaryNorm(bounds, cmap.N)
+        # create discrete colormap
+        plt.rcParams["figure.figsize"] = [10,10]
+        fig, ax = plt.subplots()
+ 
+        for agent in self.agents.values():
+            t = "{}({}) ".format(agent.agent_id, agent.reward)
+            plt.text(agent.pos[1]-0.4, agent.pos[0], t, fontsize = 8)
+        ax.imshow(self.map, cmap=cmap, norm=norm)
+        # draw gridlines
+        ax.grid(which='major', axis='both', linestyle='-', color='k', linewidth=1)
+        ax.set_xticks(np.arange(-.5, 18, 1));
+        ax.set_yticks(np.arange(-.5, 25, 1));
+        # if not labels:
+        plt.tick_params(bottom=False, top=False, left=False, right=False, labelbottom=False, labelleft=False)
 
-        plt.figure(figsize=(6,6))
-        plt.gca().invert_yaxis()
-        plt.pcolor(self.map, cmap=cmap, edgecolors='k', linewidths=2)
         plt.show()
 
-        return labels
-
+        return 0
