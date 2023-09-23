@@ -124,7 +124,7 @@ class CleanupEnv(MultiAgentEnv):
                 reward += self.calculate_reward(new_x, new_y)
             elif action == 2:  # down
                 x, new_y = agent.pos[0], agent.pos[1]
-                new_x = x + 1 if x < self.width - 1 else x
+                new_x = x + 1 if x < self.height - 1 else x
                 if (new_x, new_y) not in has_agent:
                     agent.pos = np.array([new_x, new_y])
                 else:
