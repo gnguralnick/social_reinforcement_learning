@@ -3,3 +3,9 @@ gymnasium
 matplotlib
 seaborn
 numpy
+dm_tree
+pyarrow
+fsspec
+opencv-python
+lz4
+scipy
