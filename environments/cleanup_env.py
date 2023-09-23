@@ -14,7 +14,6 @@ thresholdDepletion = 0.4
 thresholdRestoration = 0.0
 wasteSpawnProbability = 0.5
 appleRespawnProbability = 0.05
-potential_waste_area = 6 * 25
 
 
 class CleanupEnv(MultiAgentEnv):
@@ -24,7 +23,7 @@ class CleanupEnv(MultiAgentEnv):
     must learn to balance their individual rewards with the collective goal of cleaning up the river.
     """
 
-    def __init__(self, num_agents=5):
+    def __init__(self, num_agents=5, height=25, width=18):
         """
         Initialise the environment.
         """
@@ -32,10 +31,16 @@ class CleanupEnv(MultiAgentEnv):
         self.num_agents = num_agents
         self.timestamp = 0
 
+        self.height = height
+        self.width = width
+        self.dirt_end = round((1 / 3) * self.width)
+        self.potential_waste_area = self.dirt_end * self.height
+        self.apple_start = round((2 / 3) * self.width)
+
         self.action_space = Discrete(4)  # directional movement
         self.observation_space = Tuple(
-            (Box(low=0, high=25, shape=(self.num_agents, 2), dtype=np.int32),  # agent positions
-                Box(low=-1, high=1, shape=(25, 18), dtype=np.int32))  # map grid
+            (Box(low=0, high=self.height, shape=(self.num_agents, 2), dtype=np.int32),  # agent positions
+                Box(low=-1, high=1, shape=(self.height, self.width), dtype=np.int32))  # map grid
         )
         self.agents = {}
         self.setup_agents()
@@ -44,19 +49,19 @@ class CleanupEnv(MultiAgentEnv):
         self.current_apple_spawn_prob = appleRespawnProbability
         self.current_waste_spawn_prob = wasteSpawnProbability
         self.compute_probabilities()
-        self.map = np.zeros((25, 18))
-        for i in range(0, 25, 2):
-            for j in range(6):
+        self.map = np.zeros((self.height, self.width))
+        for i in range(0, self.height, 2):
+            for j in range(self.dirt_end):
                 self.map[i][j] = -1
                 self.num_dirt += 1
 
     def setup_agents(self):
         for i in range(self.num_agents):
             agent_id = str(i)
-            spawn_point = [random.randint(0, 24), random.randint(0, 17)]
-            while spawn_point[0] % 2 == 0 and spawn_point[1] < 6:
+            spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
+            while spawn_point[0] % 2 == 0 and spawn_point[1] < self.dirt_end:
                 # do not spawn on dirt
-                spawn_point = [random.randint(0, 24), random.randint(0, 17)]
+                spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
             agent = CleanupAgent(agent_id, spawn_point)
             self.agents[agent_id] = agent
 
@@ -71,9 +76,9 @@ class CleanupEnv(MultiAgentEnv):
         self.agents = {}
         self.setup_agents()
         self.num_dirt = 0
-        self.map = np.zeros((25, 18))
-        for i in range(0, 25, 2):
-            for j in range(6):
+        self.map = np.zeros((self.height, self.width))
+        for i in range(0, self.height, 2):
+            for j in range(self.dirt_end):
                 self.map[i][j] = -1
                 self.num_dirt += 1
 
@@ -110,7 +115,7 @@ class CleanupEnv(MultiAgentEnv):
                 reward += self.calculate_reward(new_x, new_y)
             elif action == 1:  # right
                 new_x, y = agent.pos[0], agent.pos[1]
-                new_y = y + 1 if y < 17 else y
+                new_y = y + 1 if y < self.width - 1 else y
                 if (new_x, new_y) not in has_agent:
                     agent.pos = np.array([new_x, new_y])
                 else:
@@ -119,7 +124,7 @@ class CleanupEnv(MultiAgentEnv):
                 reward += self.calculate_reward(new_x, new_y)
             elif action == 2:  # down
                 x, new_y = agent.pos[0], agent.pos[1]
-                new_x = x + 1 if x < 24 else x
+                new_x = x + 1 if x < self.width - 1 else x
                 if (new_x, new_y) not in has_agent:
                     agent.pos = np.array([new_x, new_y])
                 else:
@@ -161,8 +166,8 @@ class CleanupEnv(MultiAgentEnv):
 
     def compute_probabilities(self):
         waste_density = 0
-        if potential_waste_area > 0:
-            waste_density = self.num_dirt / potential_waste_area
+        if self.potential_waste_area > 0:
+            waste_density = self.num_dirt / self.potential_waste_area
         if waste_density >= thresholdDepletion:
             self.current_apple_spawn_prob = 0
             self.current_waste_spawn_prob = 0
@@ -178,16 +183,16 @@ class CleanupEnv(MultiAgentEnv):
 
     def spawn_apples_and_waste(self, has_agent):
         # spawn apples, multiple can spawn per step
-        for i in range(25):
-            for j in range(12, 18, 1):
+        for i in range(self.height):
+            for j in range(self.apple_start, self.width, 1):
                 rand_num = np.random.rand(1)[0]
                 if rand_num < self.current_apple_spawn_prob and (i, j) not in has_agent:
                     self.map[i][j] = 1
         # spawn one waste point, only one can spawn per step
-        if self.num_dirt < potential_waste_area:
-            dirt_spawn = [random.randint(0, 24), random.randint(0, 5)]
+        if self.num_dirt < self.potential_waste_area:
+            dirt_spawn = [random.randint(0, self.height - 1), random.randint(0, self.dirt_end)]
             while self.map[dirt_spawn[0]][dirt_spawn[1]] == -1:  # do not spawn on already existing dirt
-                dirt_spawn = [random.randint(0, 24), random.randint(0, 5)]
+                dirt_spawn = [random.randint(0, self.height - 1), random.randint(0, 5)]
 
             rand_num = np.random.rand(1)[0]
             if rand_num < self.current_waste_spawn_prob and (dirt_spawn[0], dirt_spawn[1]) not in has_agent:
@@ -202,20 +207,18 @@ class CleanupEnv(MultiAgentEnv):
         bounds = [-1, -0.5, 0.5, 1]
         norm = colors.BoundaryNorm(bounds, cmap.N)
         # create discrete colormap
-        plt.rcParams["figure.figsize"] = [10,10]
+        plt.rcParams["figure.figsize"] = [10, 10]
         fig, ax = plt.subplots()
  
         for agent in self.agents.values():
             t = "{}({}) ".format(agent.agent_id, agent.reward)
-            plt.text(agent.pos[1]-0.4, agent.pos[0], t, fontsize = 8)
+            plt.text(agent.pos[1]-0.4, agent.pos[0], t, fontsize=8)
         ax.imshow(self.map, cmap=cmap, norm=norm)
         # draw gridlines
         ax.grid(which='major', axis='both', linestyle='-', color='k', linewidth=1)
-        ax.set_xticks(np.arange(-.5, 18, 1));
-        ax.set_yticks(np.arange(-.5, 25, 1));
+        ax.set_xticks(np.arange(-.5, self.width, 1))
+        ax.set_yticks(np.arange(-.5, self.height, 1))
         # if not labels:
         plt.tick_params(bottom=False, top=False, left=False, right=False, labelbottom=False, labelleft=False)
 
         plt.show()
-
-        return 0
