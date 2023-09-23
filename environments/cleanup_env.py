@@ -199,6 +199,26 @@ class CleanupEnv(MultiAgentEnv):
                 self.map[dirt_spawn[0]][dirt_spawn[1]] = -1
                 self.num_dirt += 1
 
+    def find_nearest_object_from_agent(self, agent_pos):
+        x, y = agent_pos
+        closest_x, closest_y, min_distance = -1, -1, float('inf')
+        for i in range(self.height):
+            for j in range(self.width):
+                if self.map[i][j] in [1, -1] and abs(i - x) + abs(j - y) <= min_distance:
+                    min_distance = abs(i - x) + abs(j - y)
+                    closest_x, closest_y = i, j
+        return np.array(closest_y, closest_x)
+    
+    def get_greedy_action(self, agent_pos):
+        nearest_obj = self.find_nearest_object_from_agent(agent_pos)
+        if agent_pos[0] == nearest_obj[0]:
+            if nearest_obj[1] < agent_pos[1]:
+                return 3
+            return 1
+        if agent_pos[0] > nearest_obj[0]:
+            return 0
+        return 2   
+
     def render(self):
         """
         Render the environment.
