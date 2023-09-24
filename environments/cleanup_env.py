@@ -42,18 +42,18 @@ class CleanupEnv(MultiAgentEnv):
             (Box(low=0, high=self.height, shape=(self.num_agents, 2), dtype=np.int32),  # agent positions
                 Box(low=-1, high=1, shape=(self.height, self.width), dtype=np.int32))  # map grid
         )
-        self.agents = {}
-        self.setup_agents()
+        self.agents = {}    
 
         self.num_dirt = 0
         self.current_apple_spawn_prob = appleRespawnProbability
         self.current_waste_spawn_prob = wasteSpawnProbability
-        self.compute_probabilities()
         self.map = np.zeros((self.height, self.width))
         for i in range(0, self.height, 2):
             for j in range(self.dirt_end):
                 self.map[i][j] = -1
                 self.num_dirt += 1
+        self.compute_probabilities()
+        self.setup_agents()
 
     def setup_agents(self):
         for i in range(self.num_agents):
@@ -65,6 +65,10 @@ class CleanupEnv(MultiAgentEnv):
             agent = CleanupAgent(agent_id, spawn_point)
             self.agents[agent_id] = agent
 
+    def greedily_setup_agents(self):
+        relative_agent_frequency_in_dirt = self.current_waste_spawn_prob / (self.current_apple_spawn_prob + self.current_waste_spawn_prob)
+
+
     def reset(self, seed: int | None = None, options: dict = None) -> tuple:
         """
         Reset the environment.
@@ -74,13 +78,16 @@ class CleanupEnv(MultiAgentEnv):
         super().reset(seed=seed)
         self.timestamp = 0
         self.agents = {}
-        self.setup_agents()
         self.num_dirt = 0
         self.map = np.zeros((self.height, self.width))
+        self.current_apple_spawn_prob = appleRespawnProbability
+        self.current_waste_spawn_prob = wasteSpawnProbability
         for i in range(0, self.height, 2):
             for j in range(self.dirt_end):
                 self.map[i][j] = -1
                 self.num_dirt += 1
+        self.compute_probabilities()
+        self.setup_agents()
 
         observations = {}
         pos = np.zeros((self.num_agents, 2))
@@ -153,6 +160,15 @@ class CleanupEnv(MultiAgentEnv):
 
         dones["__all__"] = self.timestamp == 1000
         return obs, rewards, dones, {"__all__": False}, {}
+    
+    def greedily_move_to_closest_object(self):
+        """
+        Each agent moves to the closest object
+        """
+        actions = {}
+        for agent in self.agents.values():
+            actions[agent.id] = self.get_greedy_action(agent.pos)
+        return actions
 
     def calculate_reward(self, x, y):
         if self.map[x][y] == -1:
@@ -198,6 +214,26 @@ class CleanupEnv(MultiAgentEnv):
             if rand_num < self.current_waste_spawn_prob and (dirt_spawn[0], dirt_spawn[1]) not in has_agent:
                 self.map[dirt_spawn[0]][dirt_spawn[1]] = -1
                 self.num_dirt += 1
+
+    def find_nearest_object_from_agent(self, agent_pos):
+        x, y = agent_pos
+        closest_x, closest_y, min_distance = -1, -1, float('inf')
+        for i in range(self.height):
+            for j in range(self.width):
+                if self.map[i][j] in [1, -1] and abs(i - x) + abs(j - y) <= min_distance:
+                    min_distance = abs(i - x) + abs(j - y)
+                    closest_x, closest_y = i, j
+        return np.array(closest_y, closest_x)
+    
+    def get_greedy_action(self, agent_pos):
+        nearest_obj = self.find_nearest_object_from_agent(agent_pos)
+        if agent_pos[0] == nearest_obj[0]:
+            if nearest_obj[1] < agent_pos[1]:
+                return 3
+            return 1
+        if agent_pos[0] > nearest_obj[0]:
+            return 0
+        return 2   
 
     def render(self):
         """
