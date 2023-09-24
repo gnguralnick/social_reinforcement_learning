@@ -45,12 +45,13 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
         print("Average Agent Reward: {}".format(score_sum / len(score)))
     print("Total avg: {}".format(total / 10))
     env.close()
+    return total
 
 
-def test_centralized(model: Model, env: MultiAgentEnv, episodes, num_agents, render=False):
+def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
     total = 0
     num_actions = flatten_space(env.action_space).shape[0]
-    for episode in range(1, episodes + 1):
+    for episode in range(1, num_episodes + 1):
         state, _ = env.reset()
         all_done = False
         score = defaultdict(int)
@@ -63,7 +64,7 @@ def test_centralized(model: Model, env: MultiAgentEnv, episodes, num_agents, ren
                               verbose=0)[0]
             # print(a)
             for agent in range(num_agents):
-                if np.random.random() < 0.1:
+                if np.random.random() < eps:
                     action = np.random.randint(0, num_actions)
                 else:
                     action = np.argmax(a[agent])
@@ -81,5 +82,7 @@ def test_centralized(model: Model, env: MultiAgentEnv, episodes, num_agents, ren
             score_sum += s
         total += score_sum / len(score)
         print("Average Agent Reward: {}".format(score_sum / len(score)))
+        eps *= eps_decay_factor
     print("Total avg: {}".format(total / 10))
     env.close()
+    return total

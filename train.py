@@ -76,7 +76,7 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
     num_actions = flatten_space(env.action_space).shape[0]
     for i_episode in range(num_episodes):
         states, _ = env.reset()
-        eps *= eps_decay_factor
+
         terminate = False
         num_agents = len(states)
         episode_reward = 0
@@ -125,3 +125,6 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
         print("\rEpisode {}/{} (total reward: {})".format(i_episode + 1, num_episodes, episode_reward))
         print("Agent rewards: {}".format(agent_reward))
         print(rewards_graph)
+        eps *= eps_decay_factor
+
+    return model, rewards_graph
