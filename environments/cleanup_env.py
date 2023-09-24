@@ -249,8 +249,9 @@ class CleanupEnv(MultiAgentEnv):
             for j in range(self.apple_start, self.width, 1):
                 rand_num = np.random.rand(1)[0]
                 if rand_num < self.current_apple_spawn_prob and (i, j) not in has_agent:
+                    if (self.map[i][j] != 1):
+                        self.num_apples += 1
                     self.map[i][j] = 1
-                    self.num_apples += 1
 
         # spawn one waste point, only one can spawn per step
         if self.num_dirt < self.potential_waste_area:
