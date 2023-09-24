@@ -3,11 +3,13 @@ import numpy as np
 from ray.rllib.env import MultiAgentEnv
 
 from models.model import Model
+from gymnasium.spaces import flatten_space
 
 
 def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, discount_factor, alpha,
           batch_size, render=False):
     rewards_graph = []
+    num_actions = flatten_space(env.action_space).shape[0]
     for i_episode in range(num_episodes):
         states, _ = env.reset()
         terminate = False
@@ -26,7 +28,7 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
                 state_batches[agent_id].append(states[agent_id][1])
                 pos_batches[agent_id].append(states[agent_id][0])
                 if np.random.random() < eps:
-                    actions[agent_id] = np.random.randint(0, env.action_space.shape[0])
+                    actions[agent_id] = np.random.randint(0, num_actions)
                 else:
                     actions[agent_id] = np.argmax(models[agent_id].predict(
                         [states[agent_id][0].reshape(1, num_agents, 2), states[agent_id][1].reshape(1, 25, 18)]))
@@ -52,7 +54,7 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
                     models[agent_id].fit(
                         [np.array(pos_batches[agent_id]).reshape(batch_size, num_agents, 2),
                          np.array(state_batches[agent_id]).reshape(batch_size, 25, 18)],
-                        np.array(target_batches[agent_id]).reshape(batch_size, env.action_space.shape[0]),
+                        np.array(target_batches[agent_id]).reshape(batch_size, num_actions),
                         epochs=1, verbose=0)
                 state_batches = defaultdict(list)
                 pos_batches = defaultdict(list)
@@ -71,6 +73,7 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
 def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, discount_factor, alpha,
                       batch_size, render=False):
     rewards_graph = []
+    num_actions = flatten_space(env.action_space).shape[0]
     for i_episode in range(num_episodes):
         states, _ = env.reset()
         eps *= eps_decay_factor
@@ -92,7 +95,7 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
             pos_batch.append(states["0"][0])
             for i in range(num_agents):
                 if np.random.random() < eps:
-                    actions[str(i)] = np.random.randint(0, env.action_space.n)
+                    actions[str(i)] = np.random.randint(0, num_actions)
                 else:
                     actions[str(i)] = np.argmax(a[i])
             new_states, rewards, done, _, _ = env.step(actions)

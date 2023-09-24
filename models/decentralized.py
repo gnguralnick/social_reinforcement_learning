@@ -1,13 +1,17 @@
 from models.model import Model
-from common import build_q_arch
+from models.common import build_q_arch
 from tensorflow.python.keras import layers, Model as KerasModel
 
 
 class DecentralizedModel(Model):
 
+    def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+        super(DecentralizedModel, self).__init__(obs_space, action_space, num_outputs, model_config, name, build=True)
+        self.use_model = True
+
     def build_model(self):
         last_hidden = build_q_arch(self.state_input, self.pos_input)
 
-        action = layers.Dense(self.action_space.shape, activation="linear")(last_hidden)
+        action = layers.Dense(self.num_actions, activation="linear")(last_hidden)
 
         self._model = KerasModel(inputs=[self.pos_input, self.state_input], outputs=action)

@@ -3,10 +3,12 @@ from ray.rllib import MultiAgentEnv
 from models.model import Model
 from collections import defaultdict
 import numpy as np
+from gymnasium.spaces import flatten_space
 
 
 def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
     total = 0
+    num_actions = flatten_space(env.action_space).shape[0]
     for episode in range(1, num_episodes + 1):
         states, _ = env.reset()
 
@@ -19,7 +21,7 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
             action_dict = {}
             for agent in range(num_agents):
                 if np.random.random() < eps:
-                    action = np.random.randint(0, env.action_space.shape[0])
+                    action = np.random.randint(0, num_actions)
                 else:
                     p = models[str(agent)].predict([states[str(agent)][0].reshape(1, num_agents, 2),
                                                     states[str(agent)][1].reshape(1, 25, 18)])
@@ -47,6 +49,7 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
 
 def test_centralized(model: Model, env: MultiAgentEnv, episodes, num_agents, render=False):
     total = 0
+    num_actions = flatten_space(env.action_space).shape[0]
     for episode in range(1, episodes + 1):
         state, _ = env.reset()
         all_done = False
@@ -61,14 +64,14 @@ def test_centralized(model: Model, env: MultiAgentEnv, episodes, num_agents, ren
             # print(a)
             for agent in range(num_agents):
                 if np.random.random() < 0.1:
-                    action = np.random.randint(0, env.action_space.n)
+                    action = np.random.randint(0, num_actions)
                 else:
                     action = np.argmax(a[agent])
                 # print(action)
                 agent_id = str(agent)
                 action_dict[agent_id] = action
             n_state, rewards, dones, _, info = env.step(action_dict)
-            all_done = all(value == True for value in dones.values())
+            all_done = all(value for value in dones.values())
             state = n_state
             for key in rewards.keys():
                 score[key] += rewards[key]
