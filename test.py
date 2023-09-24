@@ -5,18 +5,20 @@ from collections import defaultdict
 import numpy as np
 
 
-def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents):
+def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
     total = 0
     for episode in range(1, num_episodes + 1):
         states, _ = env.reset()
+
         all_done = False
         score = defaultdict(int)
 
         while not all_done:
-            env.render()
+            if render:
+                env.render()
             action_dict = {}
             for agent in range(num_agents):
-                if np.random.random() < 0.1:
+                if np.random.random() < eps:
                     action = np.random.randint(0, env.action_space.shape[0])
                 else:
                     p = models[str(agent)].predict([states[str(agent)][0].reshape(1, num_agents, 2),
@@ -37,6 +39,7 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents)
         for s in score.values():
             score_sum += s
         total += score_sum / len(score)
+        eps *= eps_decay_factor
         print("Average Agent Reward: {}".format(score_sum / len(score)))
     print("Total avg: {}".format(total / 10))
     env.close()

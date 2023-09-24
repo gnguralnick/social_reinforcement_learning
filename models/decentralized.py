@@ -1,4 +1,4 @@
-from model import Model
+from models.model import Model
 from common import build_q_arch
 from tensorflow.python.keras import layers, Model as KerasModel
 

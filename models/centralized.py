@@ -1,4 +1,4 @@
-from model import Model
+from models.model import Model
 from tensorflow.python.keras import layers, Model as KerasModel
 
 from models.common import build_q_arch
@@ -21,6 +21,9 @@ class CentralizedHelper(Model):
 
     def summary(self):
         self.parent.summary()
+
+    def fit(self, *args, **kwargs):
+        return self.parent.fit(*args, **kwargs)
 
 
 class CentralizedQModel(Model):

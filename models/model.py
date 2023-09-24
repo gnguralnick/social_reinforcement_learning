@@ -1,5 +1,4 @@
 import gymnasium as gym
-from ray.rllib import MultiAgentEnv
 from tensorflow.python import keras
 from tensorflow.python.keras import layers
 
@@ -45,4 +44,4 @@ class Model:
     def fit(self, *args, **kwargs):
         if not self.use_model:
             return
-        self._model.fit(*args, **kwargs)
+        return self._model.fit(*args, **kwargs)
