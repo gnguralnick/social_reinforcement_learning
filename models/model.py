@@ -32,7 +32,12 @@ class Model:
             raise NotImplementedError
         return self._model.predict(obs)
 
-    def compile(self, optimizer, loss):
+    def compile(self, optimizer='adam', loss='mse', metrics=None):
         if not self.use_model:
             return
-        self._model.compile(optimizer=optimizer, loss=loss)
+        self._model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+
+    def summary(self):
+        if not self.use_model:
+            print(f'Model: {self.name} - Model not used')
+        self._model.summary()
