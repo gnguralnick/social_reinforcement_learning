@@ -26,10 +26,10 @@ class Model:
             return
         self._model = keras.Model()
 
-    def predict(self, obs):
+    def predict(self, obs, **kwargs):
         if not self.use_model:
             raise NotImplementedError  # this should always be overridden in subclasses where use_model is False
-        return self._model.predict(obs)
+        return self._model.predict(obs, **kwargs)
 
     def compile(self, optimizer='adam', loss='mse', metrics=None):
         if not self.use_model:

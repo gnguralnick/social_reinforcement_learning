@@ -43,3 +43,40 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
         print("Average Agent Reward: {}".format(score_sum / len(score)))
     print("Total avg: {}".format(total / 10))
     env.close()
+
+
+def test_centralized(model: Model, env: MultiAgentEnv, episodes, num_agents, render=False):
+    total = 0
+    for episode in range(1, episodes + 1):
+        state, _ = env.reset()
+        all_done = False
+        score = defaultdict(int)
+
+        while not all_done:
+            if render:
+                env.render()
+            action_dict = {}
+            a = model.predict([state["0"][0].reshape(1, num_agents, 2), state["0"][1].reshape(1, 25, 18)],
+                              verbose=0)[0]
+            # print(a)
+            for agent in range(num_agents):
+                if np.random.random() < 0.1:
+                    action = np.random.randint(0, env.action_space.n)
+                else:
+                    action = np.argmax(a[agent])
+                # print(action)
+                agent_id = str(agent)
+                action_dict[agent_id] = action
+            n_state, rewards, dones, _, info = env.step(action_dict)
+            all_done = all(value == True for value in dones.values())
+            state = n_state
+            for key in rewards.keys():
+                score[key] += rewards[key]
+        print('Episode:{} Score:{}'.format(episode, score))
+        score_sum = 0
+        for s in score.values():
+            score_sum += s
+        total += score_sum / len(score)
+        print("Average Agent Reward: {}".format(score_sum / len(score)))
+    print("Total avg: {}".format(total / 10))
+    env.close()
