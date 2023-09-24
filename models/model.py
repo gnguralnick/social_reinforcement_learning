@@ -29,7 +29,7 @@ class Model:
 
     def predict(self, obs):
         if not self.use_model:
-            raise NotImplementedError
+            raise NotImplementedError  # this should always be overridden in subclasses where use_model is False
         return self._model.predict(obs)
 
     def compile(self, optimizer='adam', loss='mse', metrics=None):
@@ -41,3 +41,8 @@ class Model:
         if not self.use_model:
             print(f'Model: {self.name} - Model not used')
         self._model.summary()
+
+    def fit(self, *args, **kwargs):
+        if not self.use_model:
+            return
+        self._model.fit(*args, **kwargs)
