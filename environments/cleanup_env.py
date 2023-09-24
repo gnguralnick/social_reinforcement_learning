@@ -198,7 +198,7 @@ class CleanupEnv(MultiAgentEnv):
         agents_assigned_to_apples = [agent for agent in self.agents.values() if agent.region == 1]
         if len(agents_assigned_to_dirt) < num_agents_to_be_assigned_to_dirt:
             agents_assigned_to_apples.sort(key=lambda agent: self.find_nearest_waste_from_agent(agent)[1])
-            for i in range(num_agents_to_be_assigned_to_dirt - len(agent_frequency_in_dirt)):
+            for i in range(num_agents_to_be_assigned_to_dirt - len(agents_assigned_to_dirt)):
                 agents_assigned_to_apples[i].region = -1
         elif len(agents_assigned_to_dirt) > num_agents_to_be_assigned_to_dirt:
             agents_assigned_to_dirt.sort(key=lambda agent: self.find_nearest_apple_from_agent(agent)[1])
@@ -272,7 +272,7 @@ class CleanupEnv(MultiAgentEnv):
                 if self.map[i][j] == 1 and abs(i - x) + abs(j - y) <= min_distance:
                     min_distance = abs(i - x) + abs(j - y)
                     closest_x, closest_y = i, j
-        return np.array(closest_y, closest_x), min_distance
+        return [closest_x, closest_y], min_distance
     
     def find_nearest_waste_from_agent(self, agent):
         assert(self.greedy)
@@ -283,7 +283,7 @@ class CleanupEnv(MultiAgentEnv):
                 if self.map[i][j] == -1 and abs(i - x) + abs(j - y) <= min_distance:
                     min_distance = abs(i - x) + abs(j - y)
                     closest_x, closest_y = i, j
-        return np.array(closest_y, closest_x), min_distance
+        return [closest_x, closest_y], min_distance
     
     def get_greedy_action(self, agent):
         assert(self.greedy)
