@@ -5,7 +5,7 @@ from tensorflow.python.keras import layers
 
 class Model:
 
-    def __init__(self, obs_space: gym.spaces.Tuple, action_space: gym.spaces.Space, num_outputs, model_config, name, build=True):
+    def __init__(self, obs_space: gym.spaces.Tuple, action_space: gym.spaces.Space, num_outputs, model_config, name, build=False):
         self._model = None
         self.obs_space = obs_space
         self.pos_space = obs_space[0]
