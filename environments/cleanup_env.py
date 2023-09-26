@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from ray.rllib.env import MultiAgentEnv
 
-from agents.cleanup_agent import CleanupAgent, GreedyCleanUpAgent
+from social_reinforcement_learning.agents.cleanup_agent import CleanupAgent, GreedyCleanUpAgent
 
 thresholdDepletion = 0.4
 thresholdRestoration = 0.0
@@ -55,10 +55,7 @@ class CleanupEnv(MultiAgentEnv):
                 self.map[i][j] = -1
                 self.num_dirt += 1
         self.compute_probabilities()
-        if not self.greedy:
-            self.setup_agents()
-        else:
-            self.greedily_setup_agents()
+        self.setup_agents()
 
     def setup_agents(self):
         for i in range(self.num_agents):
@@ -67,29 +64,32 @@ class CleanupEnv(MultiAgentEnv):
             while spawn_point[0] % 2 == 0 and spawn_point[1] < self.dirt_end:
                 # do not spawn on dirt
                 spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            agent = CleanupAgent(agent_id, spawn_point)
+            if not self.greedy:
+              agent = CleanupAgent(agent_id, spawn_point)
+            else:
+              agent = GreedyCleanUpAgent(agent_id, spawn_point, -1)
             self.agents[agent_id] = agent
 
-    def greedily_setup_agents(self):
-        assert(self.greedy)
-        agent_frequency_in_dirt = self.num_dirt / (self.num_apples + self.num_dirt)
-        num_agents_to_be_assigned_to_dirt = round(self.num_agents * agent_frequency_in_dirt)
-        for i in range(num_agents_to_be_assigned_to_dirt):
-            agent_id = str(i)
-            spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            while spawn_point[0] % 2 == 0 or spawn_point[1] >= self.dirt_end:
-                # do not spawn on dirt
-                spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            agent = GreedyCleanUpAgent(agent_id, spawn_point, -1)
-            self.agents[agent_id] = agent
-        for i in range(num_agents_to_be_assigned_to_dirt, self.num_agents):
-            agent_id = str(i)
-            spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            while self.map(spawn_point[0], spawn_point[1]) == 1 or spawn_point[1] < self.apple_start:
-                # do not spawn on apples
-                spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            agent = GreedyCleanUpAgent(agent_id, spawn_point, 1)
-            self.agents[agent_id] = agent
+    # def greedily_setup_agents(self):
+    #     assert(self.greedy)
+    #     agent_frequency_in_dirt = self.num_dirt / (self.num_apples + self.num_dirt)
+    #     num_agents_to_be_assigned_to_dirt = round(self.num_agents * agent_frequency_in_dirt)
+    #     for i in range(num_agents_to_be_assigned_to_dirt):
+    #         agent_id = str(i)
+    #         spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
+    #         while spawn_point[0] % 2 == 0 or spawn_point[1] >= self.dirt_end:
+    #             # do not spawn on dirt
+    #             spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
+    #         agent = GreedyCleanUpAgent(agent_id, spawn_point, -1)
+    #         self.agents[agent_id] = agent
+    #     for i in range(num_agents_to_be_assigned_to_dirt, self.num_agents):
+    #         agent_id = str(i)
+    #         spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
+    #         while self.map(spawn_point[0], spawn_point[1]) == 1 or spawn_point[1] < self.apple_start:
+    #             # do not spawn on apples
+    #             spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
+    #         agent = GreedyCleanUpAgent(agent_id, spawn_point, 1)
+    #         self.agents[agent_id] = agent
 
 
     def reset(self, seed: int | None = None, options: dict = None) -> tuple:
@@ -111,10 +111,7 @@ class CleanupEnv(MultiAgentEnv):
                 self.map[i][j] = -1
                 self.num_dirt += 1
         self.compute_probabilities()
-        if not self.greedy:
-            self.setup_agents()
-        else:
-            self.greedily_setup_agents()
+        self.setup_agents
 
         observations = {}
         pos = np.zeros((self.num_agents, 2))
@@ -212,7 +209,7 @@ class CleanupEnv(MultiAgentEnv):
         assert(self.greedy)
         actions = {}
         for agent in self.agents.values():
-            actions[agent.id] = self.get_greedy_action(agent)
+            actions[agent.agent_id] = self.get_greedy_action(agent)
         return actions
 
     def calculate_reward(self, x, y):
