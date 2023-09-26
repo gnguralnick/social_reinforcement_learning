@@ -111,7 +111,7 @@ class CleanupEnv(MultiAgentEnv):
                 self.map[i][j] = -1
                 self.num_dirt += 1
         self.compute_probabilities()
-        self.setup_agents
+        self.setup_agents()
 
         observations = {}
         pos = np.zeros((self.num_agents, 2))
