@@ -1,3 +1,4 @@
+from gymnasium import spaces
 from ray.rllib import MultiAgentEnv
 
 from models.model import Model
@@ -9,6 +10,12 @@ from gymnasium.spaces import flatten_space
 def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
     total = 0
     num_actions = flatten_space(env.action_space).shape[0]
+    if isinstance(env.observation_space, spaces.Tuple):
+        env_height = env.observation_space[1].shape[0]
+        env_width = env.observation_space[1].shape[1]
+    else:
+        env_height = env.observation_space.shape[0]
+        env_width = env.observation_space.shape[1]
     for episode in range(1, num_episodes + 1):
         states, _ = env.reset()
 
@@ -24,7 +31,7 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
                     action = np.random.randint(0, num_actions)
                 else:
                     p = models[str(agent)].predict([states[str(agent)][0].reshape(1, num_agents, 2),
-                                                    states[str(agent)][1].reshape(1, 25, 18)])
+                                                    states[str(agent)][1].reshape(1, env_height, env_width)])
                     # print(states[str(agent)][0])
                     # print(states[str(agent)][0].reshape(1, num_agents_cleanup, 2))
                     action = np.argmax(p)
@@ -51,6 +58,12 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
 def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
     total = 0
     num_actions = flatten_space(env.action_space).shape[0]
+    if isinstance(env.observation_space, spaces.Tuple):
+        env_height = env.observation_space[1].shape[0]
+        env_width = env.observation_space[1].shape[1]
+    else:
+        env_height = env.observation_space.shape[0]
+        env_width = env.observation_space.shape[1]
     for episode in range(1, num_episodes + 1):
         state, _ = env.reset()
         all_done = False
@@ -60,7 +73,7 @@ def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents,
             if render:
                 env.render()
             action_dict = {}
-            a = model.predict([state["0"][0].reshape(1, num_agents, 2), state["0"][1].reshape(1, 25, 18)],
+            a = model.predict([state["0"][0].reshape(1, num_agents, 2), state["0"][1].reshape(1, env_height, env_width)],
                               verbose=0)[0]
             # print(a)
             for agent in range(num_agents):

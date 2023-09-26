@@ -41,9 +41,9 @@ class CleanupEnv(MultiAgentEnv):
         self.action_space = Discrete(4)  # directional movement
         self.observation_space = Tuple(
             (Box(low=0, high=self.height, shape=(self.num_agents, 2), dtype=np.int32),  # agent positions
-                Box(low=-1, high=1, shape=(self.height, self.width), dtype=np.int32))  # map grid
+             Box(low=-1, high=1, shape=(self.height, self.width), dtype=np.int32))  # map grid
         )
-        self.agents = {}    
+        self.agents = {}
 
         self.num_dirt = 0
         self.num_apples = 0
@@ -71,7 +71,7 @@ class CleanupEnv(MultiAgentEnv):
             self.agents[agent_id] = agent
 
     def greedily_setup_agents(self):
-        assert(self.greedy)
+        assert (self.greedy)
         agent_frequency_in_dirt = self.num_dirt / (self.num_apples + self.num_dirt)
         num_agents_to_be_assigned_to_dirt = round(self.num_agents * agent_frequency_in_dirt)
         for i in range(num_agents_to_be_assigned_to_dirt):
@@ -90,7 +90,6 @@ class CleanupEnv(MultiAgentEnv):
                 spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
             agent = GreedyCleanUpAgent(agent_id, spawn_point, 1)
             self.agents[agent_id] = agent
-
 
     def reset(self, seed: int | None = None, options: dict = None) -> tuple:
         """
@@ -189,9 +188,9 @@ class CleanupEnv(MultiAgentEnv):
 
         dones["__all__"] = self.timestamp == 1000
         return obs, rewards, dones, {"__all__": False}, {}
-    
+
     def reassign_regions_of_greedy_agents(self):
-        assert(self.greedy)
+        assert (self.greedy)
         agent_frequency_in_dirt = self.num_dirt / (self.num_apples + self.num_dirt)
         num_agents_to_be_assigned_to_dirt = round(self.num_agents * agent_frequency_in_dirt)
         agents_assigned_to_dirt = [agent for agent in self.agents.values() if agent.region == -1]
@@ -204,12 +203,12 @@ class CleanupEnv(MultiAgentEnv):
             agents_assigned_to_dirt.sort(key=lambda agent: self.find_nearest_apple_from_agent(agent)[1])
             for i in range(len(agents_assigned_to_dirt) - num_agents_to_be_assigned_to_dirt):
                 agents_assigned_to_dirt[i].region = 1
-    
+
     def greedily_move_to_closest_object(self):
         """
         Each agent moves to the closest object
         """
-        assert(self.greedy)
+        assert (self.greedy)
         actions = {}
         for agent in self.agents.values():
             actions[agent.id] = self.get_greedy_action(agent)
@@ -265,7 +264,7 @@ class CleanupEnv(MultiAgentEnv):
                 self.num_dirt += 1
 
     def find_nearest_apple_from_agent(self, agent):
-        assert(self.greedy)
+        assert (self.greedy)
         x, y = agent.pos
         closest_x, closest_y, min_distance = -1, -1, float('inf')
         for i in range(self.height):
@@ -274,9 +273,9 @@ class CleanupEnv(MultiAgentEnv):
                     min_distance = abs(i - x) + abs(j - y)
                     closest_x, closest_y = i, j
         return [closest_x, closest_y], min_distance
-    
+
     def find_nearest_waste_from_agent(self, agent):
-        assert(self.greedy)
+        assert (self.greedy)
         x, y = agent.pos
         closest_x, closest_y, min_distance = -1, -1, float('inf')
         for i in range(self.height):
@@ -285,9 +284,9 @@ class CleanupEnv(MultiAgentEnv):
                     min_distance = abs(i - x) + abs(j - y)
                     closest_x, closest_y = i, j
         return [closest_x, closest_y], min_distance
-    
+
     def get_greedy_action(self, agent):
-        assert(self.greedy)
+        assert (self.greedy)
         if agent.region == 1:
             nearest_obj = self.find_nearest_apple_from_agent(agent)[0]
         else:
@@ -298,7 +297,7 @@ class CleanupEnv(MultiAgentEnv):
             return 1
         if agent.pos[0] > nearest_obj[0]:
             return 0
-        return 2   
+        return 2
 
     def render(self):
         """
@@ -310,10 +309,10 @@ class CleanupEnv(MultiAgentEnv):
         # create discrete colormap
         plt.rcParams["figure.figsize"] = [10, 10]
         fig, ax = plt.subplots()
- 
+
         for agent in self.agents.values():
             t = "{}({}) ".format(agent.agent_id, agent.reward)
-            plt.text(agent.pos[1]-0.4, agent.pos[0], t, fontsize=8)
+            plt.text(agent.pos[1] - 0.4, agent.pos[0], t, fontsize=8)
         ax.imshow(self.map, cmap=cmap, norm=norm)
         # draw gridlines
         ax.grid(which='major', axis='both', linestyle='-', color='k', linewidth=1)
