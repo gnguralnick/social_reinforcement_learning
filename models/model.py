@@ -1,16 +1,21 @@
 import gymnasium as gym
+from ray.rllib import MultiAgentEnv
 from tensorflow.python import keras
 from tensorflow.python.keras import layers
+import typing
 
 
 class Model:
 
-    def __init__(self, obs_space: gym.spaces.Tuple, action_space: gym.spaces.Space, num_outputs, model_config, name, build=False):
+    def __init__(self, env: MultiAgentEnv, num_outputs, model_config, name, build=False):
         self._model = None
-        self.obs_space = obs_space
-        self.pos_space = obs_space[0]
-        self.state_space = obs_space[1]
-        self.action_space = action_space
+        self.env = env
+        if not isinstance(self.env.observation_space, gym.spaces.Tuple):
+            raise ValueError("Observation space must be a tuple of pos_space and state_space")
+        self.obs_space = typing.cast(gym.spaces.Tuple, self.env.observation_space)
+        self.pos_space = self.obs_space[0]
+        self.state_space = self.obs_space[1]
+        self.action_space = self.env.action_space
         self.num_actions = gym.spaces.flatten_space(self.action_space).shape[0]
 
         self.num_outputs = num_outputs

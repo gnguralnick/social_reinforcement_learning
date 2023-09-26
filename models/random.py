@@ -6,6 +6,9 @@ class RandomModel(Model):
 
     def predict(self, obs, **kwargs):
         # randomly sample self.num_outputs actions from self.action_space
-        actions = [self.action_space.sample() for _ in range(self.num_outputs)]
-        return np.array(actions)
+        actions = np.zeros((1, self.num_outputs, self.num_actions))
+        for i in range(self.num_outputs):
+            action = self.env.action_space.sample()
+            actions[0][str(i)][action] = 1
+        return actions
 

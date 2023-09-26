@@ -75,7 +75,6 @@ def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents,
             action_dict = {}
             a = model.predict([state["0"][0].reshape(1, num_agents, 2), state["0"][1].reshape(1, env_height, env_width)],
                               verbose=0)[0]
-            # print(a)
             for agent in range(num_agents):
                 if np.random.random() < eps:
                     action = np.random.randint(0, num_actions)
