@@ -7,8 +7,24 @@ from models.model import Model
 from gymnasium.spaces import flatten_space
 
 
+def get_predictions(models: dict[str, Model], states: dict[str, list], env_height, env_width, num_agents, centralized):
+    if centralized:
+        a = models["0"].predict(
+            [states["0"][0].reshape(1, num_agents, 2), states["0"][1].reshape(1, env_height, env_width)],
+            verbose=0)[0]
+        preds = {str(i): a[i] for i in range(num_agents)}
+    else:
+        preds = {}
+        for i in range(num_agents):
+            agent_id = str(i)
+            preds[agent_id] = models[agent_id].predict(
+                [states[agent_id][0].reshape(1, num_agents, 2),
+                 states[agent_id][1].reshape(1, env_height, env_width)])[0]
+    return preds
+
+
 def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, discount_factor, alpha,
-          batch_size, render=False):
+          batch_size, render=False, centralized=False):
     rewards_graph = []
     num_actions = flatten_space(env.action_space).shape[0]
     if isinstance(env.observation_space, spaces.Tuple):
@@ -29,6 +45,7 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
         while not terminate:
             if render:
                 env.render()
+            preds = get_predictions(models, states, env_height, env_width, num_agents, centralized)
             actions = {}
             for i in range(num_agents):
                 agent_id = str(i)
@@ -37,23 +54,35 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
                 if np.random.random() < eps:
                     actions[agent_id] = np.random.randint(0, num_actions)
                 else:
-                    actions[agent_id] = np.argmax(models[agent_id].predict(
-                        [states[agent_id][0].reshape(1, num_agents, 2), states[agent_id][1].reshape(1, env_height, env_width)]))
+                    actions[agent_id] = np.argmax(preds[agent_id])
             new_states, rewards, done, _, _ = env.step(actions)
+            new_preds = get_predictions(models, new_states, env_height, env_width, num_agents, centralized)
+            if centralized:
+                target_vector = preds["0"]
             for i in range(num_agents):
                 agent_id = str(i)
-                if not models[agent_id].use_model:
-                    continue
+                model_id = agent_id if not centralized else "0"
                 episode_reward += rewards[agent_id]
                 agent_reward[i] += rewards[agent_id]
-                target = rewards[agent_id] + discount_factor * np.max(models[agent_id].predict(
-                    [new_states[agent_id][0].reshape(1, num_agents, 2),
-                     new_states[agent_id][1].reshape(1, env_height, env_width)]))
-                target_vector = models[agent_id].predict(
-                    [states[agent_id][0].reshape(1, num_agents, 2), states[agent_id][1].reshape(1, env_height, env_width)])[0]
-                target_vector[actions[agent_id]] = (1 - alpha) * target_vector[actions[agent_id]] + alpha * target
-                target_batches[agent_id].append(target_vector)
+                if not models[model_id].use_model:
+                    continue
+                target = rewards[agent_id] + discount_factor * np.max(new_preds[agent_id])
+                if centralized:
+                    target_vector[i][actions[agent_id]] = (1 - alpha) * target_vector[i][actions[agent_id]] + alpha * (
+                        target)
+                else:
+                    target_vector = preds[agent_id]
+                    target_vector[actions[agent_id]] = (1 - alpha) * target_vector[actions[agent_id]] + alpha * target
+                    target_batches[agent_id].append(target_vector)
+            if centralized:
+                target_batches["0"].append(target_vector)
             if len(state_batches["0"]) == batch_size:
+                if centralized:
+                    models["0"].fit(
+                        [np.array(pos_batches["0"]).reshape(batch_size, num_agents, 2),
+                        np.array(state_batches["0"]).reshape(batch_size, env_height, env_width)],
+                        np.array(target_batches["0"]).reshape(batch_size, num_agents, 4),
+                        epochs=1, verbose=0)
                 for i in range(num_agents):
                     agent_id = str(i)
                     if not models[agent_id].use_model:
@@ -100,8 +129,9 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
             if render:
                 env.render()
             actions = {}
-            a = model.predict([states["0"][0].reshape(1, num_agents, 2), states["0"][1].reshape(1, env_height, env_width)],
-                              verbose=0)[0]
+            a = \
+            model.predict([states["0"][0].reshape(1, num_agents, 2), states["0"][1].reshape(1, env_height, env_width)],
+                          verbose=0)[0]
             state_batch.append(states["0"][1])
             pos_batch.append(states["0"][0])
             for i in range(num_agents):
@@ -117,7 +147,8 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
                 episode_reward += rewards[str(i)]
                 agent_reward[i] += rewards[str(i)]
                 target = rewards[str(i)] + discount_factor * np.max(model.predict(
-                    [new_states[str(i)][0].reshape(1, num_agents, 2), new_states[str(i)][1].reshape(1, env_height, env_width)],
+                    [new_states[str(i)][0].reshape(1, num_agents, 2),
+                     new_states[str(i)][1].reshape(1, env_height, env_width)],
                     verbose=0)[0][i])
                 target_vector[i][actions[str(i)]] = (1 - alpha) * target_vector[i][actions[str(i)]] + alpha * (target)
             target_batch.append(target_vector)
