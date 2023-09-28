@@ -8,7 +8,9 @@ from gymnasium.spaces import flatten_space
 
 
 def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
-    total = 0
+    stats = {str(i): [] for i in range(len(models))}
+    stats['total'] = []
+    stats['average'] = []
     num_actions = flatten_space(env.action_space).shape[0]
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
@@ -20,7 +22,13 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
         states, _ = env.reset()
 
         all_done = False
-        score = defaultdict(int)
+        agent_rewards = defaultdict(int)
+        episode_reward = 0
+
+        for i in range(num_agents):
+            stats[str(i)].append(dict())
+            stats[str(i)][-1]['total_reward'] = 0
+            stats[str(i)][-1]['rewards'] = []
 
         while not all_done:
             if render:
@@ -32,31 +40,33 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
                 else:
                     p = models[str(agent)].predict([states[str(agent)][0].reshape(1, num_agents, 2),
                                                     states[str(agent)][1].reshape(1, env_height, env_width)])
-                    # print(states[str(agent)][0])
-                    # print(states[str(agent)][0].reshape(1, num_agents_cleanup, 2))
                     action = np.argmax(p)
-                # print(action)
                 agent_id = str(agent)
                 action_dict[agent_id] = action
             n_state, rewards, dones, _, info = env.step(action_dict)
             all_done = all(value for value in dones.values())
             states = n_state
-            for key in rewards.keys():
-                score[key] += rewards[key]
-        print('Episode:{} Score:{}'.format(episode, score))
-        score_sum = 0
-        for s in score.values():
-            score_sum += s
-        total += score_sum / len(score)
+            for agent in range(num_agents):
+                agent_id = str(agent)
+                episode_reward += rewards[agent_id]
+                agent_rewards[agent_id] += rewards[agent_id]
+                stats[agent_id][-1]["rewards"].append(rewards[agent_id])
+                stats[agent_id][-1]["total_reward"] += rewards[agent_id]
+        
+        stats['total'].append(episode_reward)
+        stats['average'].append(episode_reward / num_agents)
+        
+        print("\rEpisode {}/{} (total reward: {})".format(episode + 1, num_episodes, episode_reward))
+        print("Agent rewards: {}".format(agent_rewards))
+
         eps *= eps_decay_factor
-        print("Average Agent Reward: {}".format(score_sum / len(score)))
-    print("Total avg: {}".format(total / 10))
     env.close()
-    return total
+    print(stats)
+    return stats
 
 
 def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
-    total = 0
+    stats = None
     num_actions = flatten_space(env.action_space).shape[0]
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
@@ -66,8 +76,18 @@ def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents,
         env_width = env.observation_space.shape[1]
     for episode in range(1, num_episodes + 1):
         state, _ = env.reset()
+        if stats is None:
+            stats = {str(i): [] for i in range(num_agents)}
+            stats['total'] = []
+            stats['average'] = []
         all_done = False
-        score = defaultdict(int)
+        
+        agent_rewards = defaultdict(int)
+        episode_reward = 0
+        for i in range(num_agents):
+            stats[str(i)].append(dict())
+            stats[str(i)][-1]['total_reward'] = 0
+            stats[str(i)][-1]['rewards'] = []
 
         while not all_done:
             if render:
@@ -80,21 +100,25 @@ def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents,
                     action = np.random.randint(0, num_actions)
                 else:
                     action = np.argmax(a[agent])
-                # print(action)
                 agent_id = str(agent)
                 action_dict[agent_id] = action
             n_state, rewards, dones, _, info = env.step(action_dict)
             all_done = all(value for value in dones.values())
             state = n_state
-            for key in rewards.keys():
-                score[key] += rewards[key]
-        print('Episode:{} Score:{}'.format(episode, score))
-        score_sum = 0
-        for s in score.values():
-            score_sum += s
-        total += score_sum / len(score)
-        print("Average Agent Reward: {}".format(score_sum / len(score)))
+            for agent in range(num_agents):
+                agent_id = str(agent)
+                episode_reward += rewards[agent_id]
+                agent_rewards[agent_id] += rewards[agent_id]
+                stats[agent_id][-1]["rewards"].append(rewards[agent_id])
+                stats[agent_id][-1]["total_reward"] += rewards[agent_id]
+        
+        stats['total'].append(episode_reward)
+        stats['average'].append(episode_reward / num_agents)
+        
+        print("\rEpisode {}/{} (total reward: {})".format(episode + 1, num_episodes, episode_reward))
+        print("Agent rewards: {}".format(agent_rewards))
+
         eps *= eps_decay_factor
-    print("Total avg: {}".format(total / 10))
     env.close()
-    return total
+    print(stats)
+    return stats

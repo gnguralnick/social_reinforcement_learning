@@ -9,7 +9,9 @@ from gymnasium.spaces import flatten_space
 
 def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, discount_factor, alpha,
           batch_size, render=False):
-    rewards_graph = []
+    stats = { str(i): [] for i in range(len(models))}
+    stats['total'] = []
+    stats['average'] = []
     num_actions = flatten_space(env.action_space).shape[0]
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
@@ -21,6 +23,10 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
         states, _ = env.reset()
         terminate = False
         num_agents = len(states)
+        for i in range(num_agents):
+            stats[str(i)].append(dict())
+            stats[str(i)][-1]['total_reward'] = 0
+            stats[str(i)][-1]['rewards'] = []
         episode_reward = 0
         agent_reward = [0] * num_agents
         state_batches = defaultdict(list)
@@ -42,16 +48,20 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
             new_states, rewards, done, _, _ = env.step(actions)
             for i in range(num_agents):
                 agent_id = str(i)
-                if not models[agent_id].use_model:
-                    continue
                 episode_reward += rewards[agent_id]
                 agent_reward[i] += rewards[agent_id]
+                stats[agent_id][-1]["rewards"].append(rewards[agent_id])
+                stats[agent_id][-1]["total_reward"] += rewards[agent_id]
+                if not models[agent_id].use_model:
+                    continue
                 target = rewards[agent_id] + discount_factor * np.max(models[agent_id].predict(
                     [new_states[agent_id][0].reshape(1, num_agents, 2),
                      new_states[agent_id][1].reshape(1, env_height, env_width)]))
+                stats[agent_id][-1]["target"] = target
                 target_vector = models[agent_id].predict(
                     [states[agent_id][0].reshape(1, num_agents, 2), states[agent_id][1].reshape(1, env_height, env_width)])[0]
                 target_vector[actions[agent_id]] = (1 - alpha) * target_vector[actions[agent_id]] + alpha * target
+                stats[agent_id][-1]["target_vector"] = target_vector
                 target_batches[agent_id].append(target_vector)
             if len(state_batches["0"]) == batch_size:
                 for i in range(num_agents):
@@ -68,18 +78,19 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
                 target_batches = defaultdict(list)
             states = new_states
             terminate = done["__all__"]
-        rewards_graph.append(episode_reward)
+        stats['total'].append(episode_reward)
+        stats['average'].append(episode_reward / num_agents)
         eps *= eps_decay_factor
         print("\rEpisode {}/{} (total reward: {})".format(i_episode + 1, num_episodes, episode_reward))
         print("Agent rewards: {}".format(agent_reward))
-        print(rewards_graph)
 
-    return models, rewards_graph
+    print(stats)
+    return models, stats
 
 
 def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, discount_factor, alpha,
                       batch_size, render=False):
-    rewards_graph = []
+    stats = None
     num_actions = flatten_space(env.action_space).shape[0]
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
@@ -89,6 +100,14 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
         env_width = env.observation_space.shape[1]
     for i_episode in range(num_episodes):
         states, _ = env.reset()
+        if stats is None:
+            stats = { str(i): [] for i in range(len(states)) }
+            stats['total'] = []
+            stats['average'] = []
+        for i in range(len(states)):
+            stats[str(i)].append(dict())
+            stats[str(i)][-1]['total_reward'] = 0
+            stats[str(i)][-1]['rewards'] = []
         terminate = False
         num_agents = len(states)
         episode_reward = 0
@@ -116,10 +135,16 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
             for i in range(num_agents):
                 episode_reward += rewards[str(i)]
                 agent_reward[i] += rewards[str(i)]
+                stats[str(i)][-1]["rewards"].append(rewards[str(i)])
+                stats[str(i)][-1]["total_reward"] += rewards[str(i)]
+                if not model.use_model:
+                    continue
                 target = rewards[str(i)] + discount_factor * np.max(model.predict(
                     [new_states[str(i)][0].reshape(1, num_agents, 2), new_states[str(i)][1].reshape(1, env_height, env_width)],
                     verbose=0)[0][i])
+                stats[str(i)][-1]["target"] = target
                 target_vector[i][actions[str(i)]] = (1 - alpha) * target_vector[i][actions[str(i)]] + alpha * (target)
+                stats[str(i)][-1]["target_vector"] = target_vector[i]
             target_batch.append(target_vector)
             if len(state_batch) == batch_size:
                 model.fit(
@@ -132,10 +157,10 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
                 target_batch = []
             states = new_states
             terminate = done["__all__"]
-        rewards_graph.append(episode_reward)
+        stats['total'].append(episode_reward)
+        stats['average'].append(episode_reward / num_agents)
         print("\rEpisode {}/{} (total reward: {})".format(i_episode + 1, num_episodes, episode_reward))
         print("Agent rewards: {}".format(agent_reward))
-        print(rewards_graph)
         eps *= eps_decay_factor
 
-    return model, rewards_graph
+    return model, stats
