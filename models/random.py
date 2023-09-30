@@ -9,6 +9,6 @@ class RandomModel(Model):
         actions = np.zeros((1, self.num_outputs, self.num_actions))
         for i in range(self.num_outputs):
             action = self.env.action_space.sample()
-            actions[0][str(i)][action] = 1
+            actions[0][i][action] = 1
         return actions
 

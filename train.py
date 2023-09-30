@@ -13,6 +13,7 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
     stats['total'] = []
     stats['average'] = []
     num_actions = flatten_space(env.action_space).shape[0]
+    num_agents = len(env.get_agent_ids())
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
         env_width = env.observation_space[1].shape[1]
@@ -22,7 +23,6 @@ def train(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_d
     for i_episode in range(num_episodes):
         states, _ = env.reset()
         terminate = False
-        num_agents = len(states)
         for i in range(num_agents):
             stats[str(i)].append(dict())
             stats[str(i)][-1]['total_reward'] = 0
@@ -92,6 +92,7 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
                       batch_size, render=False):
     stats = None
     num_actions = flatten_space(env.action_space).shape[0]
+    num_agents = len(env.get_agent_ids())
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
         env_width = env.observation_space[1].shape[1]
@@ -109,7 +110,6 @@ def train_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_d
             stats[str(i)][-1]['total_reward'] = 0
             stats[str(i)][-1]['rewards'] = []
         terminate = False
-        num_agents = len(states)
         episode_reward = 0
         agent_reward = [0] * num_agents
         state_batch = []

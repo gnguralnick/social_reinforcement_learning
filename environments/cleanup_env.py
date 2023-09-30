@@ -27,7 +27,6 @@ class CleanupEnv(MultiAgentEnv):
         """
         Initialise the environment.
         """
-        super().__init__()
         self.num_agents = num_agents
         self.timestamp = 0
 
@@ -55,9 +54,12 @@ class CleanupEnv(MultiAgentEnv):
                 self.map[i][j] = -1
                 self.num_dirt += 1
         self.compute_probabilities()
-        self.setup_agents()
+        self._agent_ids = self.setup_agents()
+
+        super().__init__()
 
     def setup_agents(self):
+        agent_ids = set()
         for i in range(self.num_agents):
             agent_id = str(i)
             spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
@@ -69,6 +71,8 @@ class CleanupEnv(MultiAgentEnv):
             else:
               agent = GreedyCleanUpAgent(agent_id, spawn_point, -1)
             self.agents[agent_id] = agent
+            agent_ids.add(agent_id)
+        return agent_ids
 
     # def greedily_setup_agents(self):
     #     assert(self.greedy)

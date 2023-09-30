@@ -7,11 +7,12 @@ import numpy as np
 from gymnasium.spaces import flatten_space
 
 
-def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
+def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, render=False):
     stats = {str(i): [] for i in range(len(models))}
     stats['total'] = []
     stats['average'] = []
     num_actions = flatten_space(env.action_space).shape[0]
+    num_agents = len(env.get_agent_ids())
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
         env_width = env.observation_space[1].shape[1]
@@ -65,9 +66,10 @@ def test(models: dict[str, Model], env: MultiAgentEnv, num_episodes, num_agents,
     return stats
 
 
-def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, num_agents, eps, eps_decay_factor, render=False):
+def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_decay_factor, render=False):
     stats = None
     num_actions = flatten_space(env.action_space).shape[0]
+    num_agents = len(env.get_agent_ids())
     if isinstance(env.observation_space, spaces.Tuple):
         env_height = env.observation_space[1].shape[0]
         env_width = env.observation_space[1].shape[1]

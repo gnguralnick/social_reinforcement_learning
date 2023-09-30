@@ -35,6 +35,7 @@ class Model:
         if not self.use_model:
             return
         self._model = keras.Model()
+        raise NotImplementedError
 
     def predict(self, obs, **kwargs):
         if not self.use_model:
