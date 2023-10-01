@@ -25,7 +25,7 @@ class CleanupEnv(ObjectiveEnv):
     must learn to balance their individual rewards with the collective goal of cleaning up the river.
     """
 
-    def __init__(self, num_agents=5, height=25, width=18, agent_type=Agent):
+    def __init__(self, num_agents=5, height=25, width=18, agents: list[Agent]=None, agent_type=Agent):
         """
         Initialise the environment.
         """
@@ -56,7 +56,11 @@ class CleanupEnv(ObjectiveEnv):
                 self.num_waste += 1
         self.compute_probabilities()
 
-        self.agents: dict[str, agent_type] = {}
+        if agents is not None:
+            self.agents: dict[str, Agent] = agents
+        else:
+            self.agents: dict[str, Agent] = {}
+
         self._agent_ids = self.setup_agents()
 
         super().__init__(self.agents, CLEANUP_OBJECTIVES)
@@ -69,8 +73,11 @@ class CleanupEnv(ObjectiveEnv):
             while spawn_point[0] % 2 == 0 and spawn_point[1] < self.waste_end:
                 # do not spawn on waste
                 spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            agent = self.agent_type(agent_id, spawn_point, random.sample(CLEANUP_OBJECTIVES, 1)[0])
-            self.agents[agent_id] = agent
+            if self.agents.get(agent_id) is not None:
+                self.agents[agent_id].set_pos(spawn_point)
+            else:
+                agent = self.agent_type(agent_id, spawn_point, random.sample(CLEANUP_OBJECTIVES, 1)[0])
+                self.agents[agent_id] = agent
             agent_ids.add(agent_id)
         return agent_ids
 
@@ -298,12 +305,8 @@ class CleanupEnv(ObjectiveEnv):
         else:
             raise ValueError(f'Unknown objective: {objective}')
 
-    def get_greedy_action(self, agent):
-        assert (self.greedy)
-        if agent.region == 1:
-            nearest_obj = self.find_nearest_apple_from_agent(agent)[0]
-        else:
-            nearest_obj = self.find_nearest_waste_from_agent(agent)[0]
+    def get_greedy_action(self, agent, objective: str = None):
+        nearest_obj = self.find_nearest_objective(agent, objective)[0]
         if agent.pos[0] == nearest_obj[0]:
             if nearest_obj[1] < agent.pos[1]:
                 return 3

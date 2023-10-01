@@ -2,6 +2,7 @@ from abc import abstractmethod
 from ray.rllib.env import MultiAgentEnv
 
 from agents.agent import ObjectiveAgent, Agent
+from agents.content_market_agent import ContentMarketAgent
 
 class AgentEnv(MultiAgentEnv):
 
@@ -32,9 +33,10 @@ class ObjectiveEnv(AgentEnv):
         raise NotImplementedError
     
     @abstractmethod
-    def get_greedy_action(self, agent: ObjectiveAgent):
+    def get_greedy_action(self, agent: ObjectiveAgent, objective: str = None):
         """
-        Returns the action that will move the agent towards its current objective.
+        Returns the action that will move the agent towards an objective.
+        If objective is None, the agent's current objective is used.
         """
         raise NotImplementedError
     
@@ -44,3 +46,10 @@ class ObjectiveEnv(AgentEnv):
         """
         return self.objectives[objective]
 
+
+def convert_to_content_market(env: ObjectiveEnv):
+    """
+    Converts an ObjectiveEnv to a ContentMarketEnv by replacing all agents with ContentMarketAgents.
+    """
+    env.agents = {agent_id: ContentMarketAgent(agent_id, env.agents[agent_id].pos, env, env.agents[agent_id].objective) for agent_id in env.agents}
+    return env
