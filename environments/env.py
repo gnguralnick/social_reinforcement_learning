@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from ray.rllib.env import MultiAgentEnv
 
 from agents.agent import ObjectiveAgent, Agent
@@ -10,7 +10,7 @@ class AgentEnv(MultiAgentEnv):
         self.agents = agents
         super().__init__()
 
-class ObjectiveEnv(AgentEnv):
+class ObjectiveEnv(AgentEnv, metaclass=ABCMeta):
     """
     A MultiAgentEnv where agents must choose to persue one of a number of objectives.
     Not all of these objectives provide a direct reward, however some objectives
