@@ -250,16 +250,6 @@ class CleanupEnv(ObjectiveEnv):
         else:
             raise ValueError(f'Unknown objective: {objective}')
 
-    def get_greedy_action(self, agent, objective: str = None):
-        nearest_obj = self.find_nearest_objective(agent, objective)[0]
-        if agent.pos[0] == nearest_obj[0]:
-            if nearest_obj[1] < agent.pos[1]:
-                return 3
-            return 1
-        if agent.pos[0] > nearest_obj[0]:
-            return 0
-        return 2
-
     def render(self):
         """
         Render the environment.

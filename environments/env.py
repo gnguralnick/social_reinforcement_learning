@@ -32,13 +32,15 @@ class ObjectiveEnv(AgentEnv):
         """
         raise NotImplementedError
     
-    @abstractmethod
     def get_greedy_action(self, agent: ObjectiveAgent, objective: str = None):
-        """
-        Returns the action that will move the agent towards an objective.
-        If objective is None, the agent's current objective is used.
-        """
-        raise NotImplementedError
+        nearest_obj = self.find_nearest_objective(agent, objective)[0]
+        if agent.pos[0] == nearest_obj[0]:
+            if nearest_obj[1] < agent.pos[1]:
+                return 3
+            return 1
+        if agent.pos[0] > nearest_obj[0]:
+            return 0
+        return 2
     
     def get_objective_quantity(self, objective: str):
         """
