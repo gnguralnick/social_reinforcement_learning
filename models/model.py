@@ -1,8 +1,12 @@
+from abc import abstractmethod
 import gymnasium as gym
+import numpy as np
 from ray.rllib import MultiAgentEnv
 from tensorflow.python import keras
 from tensorflow.python.keras import layers
 import typing
+
+from environments.env import ObjectiveEnv
 
 
 class Model:
@@ -56,3 +60,25 @@ class Model:
         if not self.use_model:
             return
         return self._model.fit(*args, **kwargs)
+
+
+class ObjectiveModel(Model):
+
+    def __init__(self, env: ObjectiveEnv, num_outputs, model_config, name):
+        super().__init__(env, num_outputs, model_config, name, False)
+        self.env = env
+
+    @abstractmethod
+    def reassign_agent_objectives(self):
+        """
+        Reassigns objectives to agents.
+        """
+        raise NotImplementedError
+    
+    def predict(self, obs, **kwargs):
+        self.reassign_agent_objectives()
+        actions = np.zeros((1, self.num_outputs, self.num_actions))
+        for id in self.env.get_agent_ids():
+            action = self.env.get_greedy_action(self.env.agents[id])
+            actions[0][int(id)][action] = 1
+        return actions
