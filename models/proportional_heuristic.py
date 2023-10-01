@@ -8,7 +8,8 @@ class ProportionalHeuristicModel(ObjectiveModel):
 
     def reassign_agent_objectives(self):
         """
-        Reassigns objectives to agents.
+        Reassigns objectives to agents based on the quantity of each objective.
+        The proportion of agents assigned to each objective is equal to the proportion of the quantity of that objective to the total quantity of all objectives.
         """
         total_objective_quantity = sum(self.env.objectives.values())
 

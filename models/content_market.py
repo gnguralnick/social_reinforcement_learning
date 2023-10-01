@@ -1,15 +1,17 @@
 import numpy as np
 from agents.content_market_agent import ContentMarketAgent
 from models.model import ObjectiveModel
-from environments.env import ObjectiveEnv, convert_to_content_market
-from typing import cast
+from environments.env import ObjectiveEnv
 
 class BasicContentMarketModel(ObjectiveModel):
+    """
+    The 'perfect information' model for the content market environment.
+    Agents will have access to each other's preferences and try to optimize towards market equilibrium in terms of following rates and production rates.
+    """
 
     def __init__(self, env: ObjectiveEnv, num_outputs, model_config, name):
         super().__init__(env, num_outputs, model_config, name)
-        self.env = convert_to_content_market(env)
-        self.agents_dict = cast(dict[str, ContentMarketAgent], self.env.agents)
+        self.agents_dict = {agent_id: ContentMarketAgent.from_objective_agent(agent, self.env) for agent_id, agent in self.env.agents.items()}
 
 
     def reassign_agent_objectives(self):

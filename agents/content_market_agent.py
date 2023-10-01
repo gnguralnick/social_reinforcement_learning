@@ -16,3 +16,7 @@ class ContentMarketAgent(ObjectiveAgent):
         self.objective_probs = {objective: 1 / len(objectives) for objective in objectives}
         curr_objective = curr_objective if curr_objective is not None else np.random.choice(list(self.objective_probs.keys()), p=list(self.objective_probs.values()))
         super().__init__(agent_id, start_pos, curr_objective)
+
+    @staticmethod
+    def from_objective_agent(agent: ObjectiveAgent, env: ObjectiveEnv):
+        return ContentMarketAgent(agent.agent_id, agent.pos, env, agent.objective)

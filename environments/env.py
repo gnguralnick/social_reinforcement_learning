@@ -45,11 +45,3 @@ class ObjectiveEnv(AgentEnv):
         Returns the quantity of the given objective.
         """
         return self.objectives[objective]
-
-
-def convert_to_content_market(env: ObjectiveEnv):
-    """
-    Converts an ObjectiveEnv to a ContentMarketEnv by replacing all agents with ContentMarketAgents.
-    """
-    env.agents = {agent_id: ContentMarketAgent(agent_id, env.agents[agent_id].pos, env, env.agents[agent_id].objective) for agent_id in env.agents}
-    return env
