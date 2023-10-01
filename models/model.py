@@ -63,6 +63,10 @@ class Model:
 
 
 class ObjectiveModel(Model):
+    """
+    A model that assigns agents to objectives within the environment.
+    By default, the model will choose the action that moves the agent towards its objective.
+    """
 
     def __init__(self, env: ObjectiveEnv, num_outputs, model_config, name):
         super().__init__(env, num_outputs, model_config, name, False)

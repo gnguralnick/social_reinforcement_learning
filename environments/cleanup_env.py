@@ -286,16 +286,17 @@ class CleanupEnv(ObjectiveEnv):
                     closest_x, closest_y = i, j
         return [closest_x, closest_y], min_distance
     
-    def find_nearest_objective(self, agent: ObjectiveAgent):
+    def find_nearest_objective(self, agent: ObjectiveAgent, objective: str = None):
         """
         Finds the nearest objective to the given agent, based on the agent's position and current objective.
         """
-        if agent.objective == 'waste':
+        objective = objective if objective is not None else agent.objective
+        if objective == 'waste':
             return self.find_nearest_waste_from_agent(agent)
-        elif agent.objective == 'apples':
+        elif objective == 'apples':
             return self.find_nearest_apple_from_agent(agent)
         else:
-            raise ValueError(f'Unknown objective: {agent.objective}')
+            raise ValueError(f'Unknown objective: {objective}')
 
     def get_greedy_action(self, agent):
         assert (self.greedy)
