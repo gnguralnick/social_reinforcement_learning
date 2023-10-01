@@ -25,7 +25,7 @@ class CleanupEnv(ObjectiveEnv):
     must learn to balance their individual rewards with the collective goal of cleaning up the river.
     """
 
-    def __init__(self, num_agents=5, height=25, width=18, agents: list[Agent]=None, agent_type=Agent):
+    def __init__(self, num_agents=5, height=25, width=18, agent_type=Agent):
         """
         Initialise the environment.
         """
@@ -55,12 +55,8 @@ class CleanupEnv(ObjectiveEnv):
                 self.map[i][j] = -1
                 self.num_waste += 1
         self.compute_probabilities()
-
-        if agents is not None:
-            self.agents: dict[str, Agent] = agents
-        else:
-            self.agents: dict[str, Agent] = {}
-
+            
+        self.agents: dict[str, Agent] = {}
         self._agent_ids = self.setup_agents()
 
         super().__init__(self.agents, CLEANUP_OBJECTIVES)
@@ -73,34 +69,10 @@ class CleanupEnv(ObjectiveEnv):
             while spawn_point[0] % 2 == 0 and spawn_point[1] < self.waste_end:
                 # do not spawn on waste
                 spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-            if self.agents.get(agent_id) is not None:
-                self.agents[agent_id].set_pos(spawn_point)
-            else:
-                agent = self.agent_type(agent_id, spawn_point, random.sample(CLEANUP_OBJECTIVES, 1)[0])
-                self.agents[agent_id] = agent
+            agent = self.agent_type(agent_id, spawn_point, random.sample(CLEANUP_OBJECTIVES, 1)[0])
+            self.agents[agent_id] = agent
             agent_ids.add(agent_id)
         return agent_ids
-
-    # def greedily_setup_agents(self):
-    #     assert(self.greedy)
-    #     agent_frequency_in_waste = self.num_waste / (self.num_apples + self.num_waste)
-    #     num_agents_to_be_assigned_to_waste = round(self.num_agents * agent_frequency_in_waste)
-    #     for i in range(num_agents_to_be_assigned_to_waste):
-    #         agent_id = str(i)
-    #         spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-    #         while spawn_point[0] % 2 == 0 or spawn_point[1] >= self.waste_end:
-    #             # do not spawn on waste
-    #             spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-    #         agent = GreedyCleanUpAgent(agent_id, spawn_point, -1)
-    #         self.agents[agent_id] = agent
-    #     for i in range(num_agents_to_be_assigned_to_waste, self.num_agents):
-    #         agent_id = str(i)
-    #         spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-    #         while self.map(spawn_point[0], spawn_point[1]) == 1 or spawn_point[1] < self.apple_start:
-    #             # do not spawn on apples
-    #             spawn_point = [random.randint(0, self.height - 1), random.randint(0, self.width - 1)]
-    #         agent = GreedyCleanUpAgent(agent_id, spawn_point, 1)
-    #         self.agents[agent_id] = agent
 
     def reset(self, seed: int | None = None, options: dict = None) -> tuple:
         """
@@ -197,31 +169,6 @@ class CleanupEnv(ObjectiveEnv):
         dones["__all__"] = self.timestamp == 1000
         return obs, rewards, dones, {"__all__": False}, {}
 
-    # def reassign_regions_of_greedy_agents(self):
-    #     assert (self.greedy)
-    #     agent_frequency_in_waste = self.num_waste / (self.num_apples + self.num_waste)
-    #     num_agents_to_be_assigned_to_waste = round(self.num_agents * agent_frequency_in_waste)
-    #     agents_assigned_to_waste = [agent for agent in self.agents.values() if agent.region == -1]
-    #     agents_assigned_to_apples = [agent for agent in self.agents.values() if agent.region == 1]
-    #     if len(agents_assigned_to_waste) < num_agents_to_be_assigned_to_waste:
-    #         agents_assigned_to_apples.sort(key=lambda agent: self.find_nearest_waste_from_agent(agent)[1])
-    #         for i in range(num_agents_to_be_assigned_to_waste - len(agents_assigned_to_waste)):
-    #             agents_assigned_to_apples[i].region = -1
-    #     elif len(agents_assigned_to_waste) > num_agents_to_be_assigned_to_waste:
-    #         agents_assigned_to_waste.sort(key=lambda agent: self.find_nearest_apple_from_agent(agent)[1])
-    #         for i in range(len(agents_assigned_to_waste) - num_agents_to_be_assigned_to_waste):
-    #             agents_assigned_to_waste[i].region = 1
-
-    def greedily_move_to_closest_object(self):
-        """
-        Each agent moves to the closest object
-        """
-        assert (self.greedy)
-        actions = {}
-        for agent in self.agents.values():
-            actions[agent.agent_id] = self.get_greedy_action(agent)
-        return actions
-
     def calculate_reward(self, x, y):
         if self.map[x][y] == -1:
             self.map[x][y] = 0
@@ -272,7 +219,6 @@ class CleanupEnv(ObjectiveEnv):
                 self.num_waste += 1
 
     def find_nearest_apple_from_agent(self, agent):
-        assert (self.greedy)
         x, y = agent.pos
         closest_x, closest_y, min_distance = -1, -1, float('inf')
         for i in range(self.height):
@@ -283,7 +229,6 @@ class CleanupEnv(ObjectiveEnv):
         return [closest_x, closest_y], min_distance
 
     def find_nearest_waste_from_agent(self, agent):
-        assert (self.greedy)
         x, y = agent.pos
         closest_x, closest_y, min_distance = -1, -1, float('inf')
         for i in range(self.height):
