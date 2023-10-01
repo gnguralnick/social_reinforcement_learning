@@ -1,3 +1,4 @@
+from agents.agent import ObjectiveAgent
 from models.model import ObjectiveModel
 
 class ProportionalHeuristicModel(ObjectiveModel):
@@ -11,16 +12,17 @@ class ProportionalHeuristicModel(ObjectiveModel):
         Reassigns objectives to agents based on the quantity of each objective.
         The proportion of agents assigned to each objective is equal to the proportion of the quantity of that objective to the total quantity of all objectives.
         """
+        agents = self.env.agents.values()
         total_objective_quantity = sum(self.env.objectives.values())
 
         objective_stats = {}
 
-        unassigned_agents: list[str] = []
+        unassigned_agents: list[ObjectiveAgent] = []
 
         for objective in self.env.objectives:
             proportion = round(self.env.objectives[objective] / total_objective_quantity)
             desired_num_agents = self.num_outputs * proportion
-            current_assignments = [agent for agent in self.env.agents if self.env.agents[agent].objective == objective]
+            current_assignments = [agent for agent in agents if agent.objective == objective]
             current_assignments.sort(key=lambda agent: self.env.find_nearest_objective(agent)[1], reverse=True)
 
             if len(current_assignments) == desired_num_agents:
