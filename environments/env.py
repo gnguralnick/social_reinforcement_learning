@@ -2,7 +2,6 @@ from abc import ABCMeta, abstractmethod
 from ray.rllib.env import MultiAgentEnv
 
 from agents.agent import ObjectiveAgent, Agent
-from agents.content_market_agent import ContentMarketAgent
 
 class AgentEnv(MultiAgentEnv):
 

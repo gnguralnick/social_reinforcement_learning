@@ -39,7 +39,7 @@ class ProportionalHeuristicModel(ObjectiveModel):
                     unassigned_agents.append(current_assignments[i])
 
         for objective, stats in objective_stats.items():
-            unassigned_agents.sort(key=lambda agent: self.env.find_nearest_objective(agent)[1])
+            unassigned_agents.sort(key=lambda agent: self.env.find_nearest_objective(agent, objective)[1])
 
             for i in range(stats['desired_num_agents'] - len(stats['current_assignments'])):
-                self.env.agents[unassigned_agents[i]].objective = objective
+                unassigned_agents[i].objective = objective

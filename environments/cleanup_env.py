@@ -9,7 +9,7 @@ from matplotlib import colors
 from ray.rllib.env import MultiAgentEnv
 
 from agents.agent import Agent, ObjectiveAgent
-from environments.env import AgentEnv, ObjectiveEnv
+from environments.env import ObjectiveEnv
 
 thresholdDepletion = 0.4
 thresholdRestoration = 0.0
@@ -59,7 +59,9 @@ class CleanupEnv(ObjectiveEnv):
         self.agents: dict[str, Agent] = {}
         self._agent_ids = self.setup_agents()
 
-        super().__init__(self.agents, CLEANUP_OBJECTIVES)
+        obj_quantities = {'waste': self.num_waste, 'apples': self.num_apples}
+
+        super().__init__(self.agents, obj_quantities)
 
     def setup_agents(self):
         agent_ids = set()
@@ -157,8 +159,6 @@ class CleanupEnv(ObjectiveEnv):
             agent.reward += reward
         self.compute_probabilities()
         self.spawn_apples_and_waste(has_agent)
-        if self.greedy:
-            self.reassign_regions_of_greedy_agents()
         pos = np.zeros((self.num_agents, 2))
         a_keys = sorted(self.agents.keys())  # key must be sorted
         for agent_key in a_keys:
