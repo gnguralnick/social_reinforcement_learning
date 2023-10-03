@@ -117,7 +117,7 @@ def test_centralized(model: Model, env: MultiAgentEnv, num_episodes, eps, eps_de
         stats['total'].append(episode_reward)
         stats['average'].append(episode_reward / num_agents)
         
-        print("\rEpisode {}/{} (total reward: {})".format(episode + 1, num_episodes, episode_reward))
+        print("\rEpisode {}/{} (total reward: {})".format(episode, num_episodes, episode_reward))
         print("Agent rewards: {}".format(agent_rewards))
 
         eps *= eps_decay_factor
