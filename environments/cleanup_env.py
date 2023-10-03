@@ -217,6 +217,9 @@ class CleanupEnv(ObjectiveEnv):
             if rand_num < self.current_waste_spawn_prob and (waste_spawn[0], waste_spawn[1]) not in has_agent:
                 self.map[waste_spawn[0]][waste_spawn[1]] = -1
                 self.num_waste += 1
+        
+        self.objectives['apples'] = self.num_apples
+        self.objectives['waste'] = self.num_waste
 
     def find_nearest_apple_from_agent(self, agent):
         x, y = agent.pos

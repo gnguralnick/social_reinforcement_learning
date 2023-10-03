@@ -20,8 +20,7 @@ class ProportionalHeuristicModel(ObjectiveModel):
         unassigned_agents: list[ObjectiveAgent] = []
 
         for objective in self.env.objectives:
-            proportion = round(self.env.objectives[objective] / total_objective_quantity)
-            desired_num_agents = self.num_outputs * proportion
+            desired_num_agents = round(self.num_outputs * (self.env.objectives[objective] / total_objective_quantity))
             current_assignments = [agent for agent in agents if agent.objective == objective]
             current_assignments.sort(key=lambda agent: self.env.find_nearest_objective(agent)[1], reverse=True)
 
@@ -43,3 +42,8 @@ class ProportionalHeuristicModel(ObjectiveModel):
 
             for i in range(stats['desired_num_agents'] - len(stats['current_assignments'])):
                 unassigned_agents[i].objective = objective
+
+        # print('env', self.env.objectives)
+        # print('agents', {'waste': len([agent for agent in agents if agent.objective == 'waste']), 'apples': len([agent for agent in agents if agent.objective == 'apples'])})
+        # assert all(agent.objective is not None for agent in agents)
+        
