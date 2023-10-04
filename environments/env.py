@@ -22,6 +22,7 @@ class ObjectiveEnv(AgentEnv, metaclass=ABCMeta):
         self.objectives = objectives
         super().__init__(agents)
         self.agents = agents
+        self.last_rewards = {agent_id: 0 for agent_id in self.agents}
     
     @abstractmethod
     def find_nearest_objective(self, agent: ObjectiveAgent, objective: str = None):

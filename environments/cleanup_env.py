@@ -167,6 +167,7 @@ class CleanupEnv(ObjectiveEnv):
             obs[self.agents[agent_key].agent_id] = (pos, self.map)
 
         dones["__all__"] = self.timestamp == 1000
+        self.last_rewards = rewards
         return obs, rewards, dones, {"__all__": False}, {}
 
     def calculate_reward(self, x, y):

@@ -19,6 +19,7 @@ class BasicContentMarketModel(ObjectiveModel):
         Update agent production and following rates to optimize towards market equilibrium.
         """
         agents = self.agents_dict.values()
+        last_rewards = self.env.last_rewards
         # TODO: update agent following rates
         # TODO: update agent production rates (objective probabilities)
         return super().reassign_agent_objectives()
