@@ -49,7 +49,7 @@ np.set_printoptions(threshold=np.inf)
 
 
 num_agents = 10
-reward_multiplier = 43
+reward_multiplier = 10
 
 # for printing options
 pp = False
@@ -76,17 +76,19 @@ class UNetwork(nn.Module):
     def __init__(self, num_agents):
         super(UNetwork, self).__init__()
         self.pref_embedding = 1
-        self.coord1 = nn.Linear(4, 128)
-        self.coord2 = nn.Linear(128, 64)
-        self.coord3 = nn.Linear(64, self.pref_embedding)
+        self.coord1 = nn.Linear(4, 64)
+        self.coord2 = nn.Linear(64, 32)
+        self.coord3 = nn.Linear(32, self.pref_embedding)
+        self.leaky_relu = nn.LeakyReLU()
         torch.nn.init.xavier_uniform_(self.coord1.weight)
         torch.nn.init.xavier_uniform_(self.coord2.weight)
         torch.nn.init.xavier_uniform_(self.coord3.weight)
 
     def forward(self, coord):
         c = coord.view(coord.size(0), -1)
-        c = self.coord1(c)
-        c = torch.relu(self.coord2(c))
+        c = torch.nn.functional.normalize(c, dim=1)
+        c = self.leaky_relu(self.coord1(c))
+        c = self.leaky_relu(self.coord2(c))
         c = self.coord3(c)
         c = c.view(coord.size(0), self.pref_embedding)
         return c
@@ -120,14 +122,15 @@ learning.
 """
 class CentralizedAgent:
     def __init__(self, num_agents, action_size, buffer_size_u=10000,
-                 batch_size=64):
+                 batch_size=128):
         self.num_agents = num_agents
         # self.input_shape = input_shape
         self.action_size = action_size
         self.batch_size = batch_size
 
         self.u_network = UNetwork(num_agents).to(device)
-        self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.0001)
+        # self.u_network.load_state_dict(torch.load("model_save_simple"))
+        self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.00005)
         self.memory = ReplayBuffer(buffer_size_u)
 
     def step(self, step_apple_reward, info_vec, new_info_vec):
@@ -152,8 +155,11 @@ class CentralizedAgent:
         next_u_values = self.u_network(new_info_vec)
 
         u_targets = step_apple_reward + GAMMA_U * next_u_values
-
         u_loss = F.mse_loss(u_values, u_targets)
+        # print(f"info_vec{info_vec[5]}")
+        # print(f"new_info_vec{new_info_vec[5]}")
+        # print(f"U_value: {u_values[5]}, U_target:{u_targets[5]}, loss:{u_loss}")
+        # print(u_loss)
         self.u_optimizer.zero_grad()
         u_loss.backward()
         self.u_optimizer.step()
@@ -204,6 +210,7 @@ class CleanupEnv(MultiAgentEnv):
         self.epsilon_decay = 0.9999
 
         self.heuristic = False
+        self.epoch = 0
 
         super().__init__()
 
@@ -232,8 +239,6 @@ class CleanupEnv(MultiAgentEnv):
 
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
-        self.epsilon = 1.0
-        self.epsilon_decay = 0.9999
 
         observations = {}
 
@@ -264,10 +269,15 @@ class CleanupEnv(MultiAgentEnv):
                     self.dirt_agent -= 1
                     self.apple_agent += 1
         else:  # use U-network to generate roles
+            d = {}
             for agent in [self.agents[key] for key in sorted(self.agents)]:
                 inf = np.array([self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent])
-                u_input0 = torch.tensor(inf).float().unsqueeze(0).to(device)
-                u_t = centralAgent.u_network(u_input0)  # current future est.
+                if (self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent) in d:
+                    u_t = d[(self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent)]
+                else:
+                    u_input0 = torch.tensor(inf).float().unsqueeze(0).to(device)
+                    u_t = centralAgent.u_network(u_input0)  # current future est.
+                    d[(self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent)] = u_t
 
                 # What if I deflect?
                 if agent.region == 1:
@@ -278,10 +288,14 @@ class CleanupEnv(MultiAgentEnv):
                     self.dirt_reward = u_t.item()
                     inf[2] += 1
                     inf[3] -= 1
-                u_input1 = torch.tensor(inf).float().unsqueeze(0).to(device)
-                u_tp = centralAgent.u_network(u_input1)
+                new_tup = (inf[0], inf[1], inf[2], inf[3])
+                if new_tup in d:
+                    u_tp = d[new_tup]
+                else:
+                    u_input1 = torch.tensor(inf).float().unsqueeze(0).to(device)
+                    u_tp = centralAgent.u_network(u_input1)
+                    d[new_tup] = u_tp
 
-                # assign deflection reward
                 if agent.region == 1:
                     self.dirt_reward = u_tp.item()
                     self.apple_agent -= 1
@@ -290,8 +304,8 @@ class CleanupEnv(MultiAgentEnv):
                     self.dirt_agent -= 1
 
                 # make decision
-                if random.random() > max(self.epsilon, 0.05):
-                    if self.dirt_reward > self.apple_reward:
+                if random.random() > max(self.epsilon, 0.2):
+                    if self.dirt_reward >= self.apple_reward:
                         agent.region = -1
                         self.dirt_agent += 1
                     else:
@@ -307,10 +321,13 @@ class CleanupEnv(MultiAgentEnv):
                         self.dirt_agent += 1
         # print(f"INFO: Apple Number: {self.num_apples}, Dirt Number: {self.num_dirt}")
         # print(f"INFO: Apple Agents: {self.apple_agent}, Dirt Agents: {self.dirt_agent}")
+        interim_input = np.array([self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent])
+
         step_reward = self.step_reward_calculation()
         self.step_apple_consumed = step_reward
         self.total_apple_consumed += step_reward
         self.step_dirt_calculation()
+        # self.step_apple_consumed += self.step_dirt_calculation()*0
         # print(f"INFO: Step Reward: {step_reward}")
         self.compute_probabilities()
         new_apple, new_dirt = self.spawn_apples_and_waste()
@@ -321,7 +338,7 @@ class CleanupEnv(MultiAgentEnv):
         rewards["apple"] = self.total_apple_consumed
         rewards["step_apple"] = self.step_apple_consumed
         dones["__all__"] = self.timestamp == 1000
-        return observations, rewards, dones, {"__all__": False}, self.generate_info()
+        return observations, rewards, dones, {"__all__": False}, self.generate_info(), interim_input
 
     def uniform_distribute(self, num_items, num_spots):
         if num_items > num_spots:
@@ -344,11 +361,15 @@ class CleanupEnv(MultiAgentEnv):
         return reward
 
     def step_dirt_calculation(self):
+        dirt_reward = 0
         d_dirt = self.uniform_distribute(self.num_dirt, self.area)
         d_cleaner = self.uniform_distribute(self.dirt_agent, self.area)
         for i in range(len(d_dirt)):
             if d_dirt[i] == 1 and d_cleaner[i] == 1:
                 self.num_dirt -= 1
+                dirt_reward += 1
+        return dirt_reward
+
 
 
     def greedily_move_to_closest_object(self):
@@ -480,8 +501,11 @@ for epoch in range(num_epochs):
     f.write(f"=============== episode {epoch} ===============\n")
     # Reset environment and get initial state
     epoch_reward = 0
+    max_epoch_reward = 0
     env_states, info = env.reset()
     states = preprocess_inputs(env_states)
+    cur_step_apple_reward = 0
+    prev_interim = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
     info_vec = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
 
     good_epoch_apple = []
@@ -491,41 +515,45 @@ for epoch in range(num_epochs):
     good_epoch_x3 = []
 
     print(f"num apple: {env.num_apples}, num dirt: {env.num_dirt}")
+    print(env.epsilon)
 
     if epoch > verbose_episode:
         verbose = True
     for step in tqdm(range(max_steps_per_epoch)):
         # Environment responds
-        next_env_states, env_rewards, dones, _, info = env.step()
-        if info["dirt"] == 0:
-            good_epoch_apple.append(info["apple"])
-        else:
-            good_epoch_apple.append(info["apple"]/info["dirt"])
+        next_env_states, env_rewards, dones, _, info, interim_input = env.step()
+        # if info["dirt"] == 0:
+        #     good_epoch_apple.append(info["apple"])
+        # else:
+        #     good_epoch_apple.append(info["apple"]/info["dirt"])
+        good_epoch_apple.append(info["apple"])
         good_epoch_dirt.append(info["dirt"])
-        good_epoch_x1.append(info["x1"])
+        good_epoch_x1.append(env.dirt_agent)
         good_epoch_x2.append(info["x2"])
-        good_epoch_x3.append(info["x3"])
+        good_epoch_x3.append(env.apple_agent)
 
         new_info_vec = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
-
         epoch_reward = env_rewards["apple"]
-        step_apple_reward = env_rewards["step_apple"]
+        prev_step_reward = cur_step_apple_reward
+        cur_step_apple_reward = env_rewards["step_apple"]
 
         if not env.heuristic:
-            centralAgent.step(step_apple_reward, info_vec, new_info_vec)
+            # print(f"prev_reward: {prev_step_reward}, prev_interim:{prev_interim}, cur_interim:{interim_input}")
+            centralAgent.step(prev_step_reward, prev_interim, interim_input)
 
         # Update state
+        prev_interim = interim_input
         info_vec = new_info_vec
         if verbose:
             print(f"{step}: num apple: {env.num_apples}, num dirt: {env.num_dirt}")
 
         if dones["__all__"]:
             break
-
-    if epoch_reward > 3200:
+    env.epoch += 1
+    if epoch_reward >= 0:
         f_good.write(f"Epoch number: {epoch}\n")
         f_good.write(f"Epoch reward: {epoch_reward}\n")
-        f_good.write(f"Epoch apple/dirt\n")
+        f_good.write(f"Epoch apple\n")
         f_good.write(f"{good_epoch_apple}\n\n")
         f_good.write(f"Epoch dirt\n")
         f_good.write(f"{good_epoch_dirt}\n\n")
@@ -535,6 +563,9 @@ for epoch in range(num_epochs):
         f_good.write(f"{good_epoch_x2}\n\n")
         f_good.write(f"Epoch x3\n")
         f_good.write(f"{good_epoch_x3}\n\n")
+    if epoch_reward > 4500 and epoch_reward >= max_epoch_reward:
+        max_epoch_reward = epoch_reward
+        torch.save(centralAgent.u_network.state_dict(), "model_save_simple")
 
     print(f"Epoch reward: {epoch_reward}")
     reward_graph.append(epoch_reward)
