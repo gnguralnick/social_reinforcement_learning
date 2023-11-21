@@ -4,11 +4,9 @@ import numpy as np
 from models.util import ReplayBuffer
 
 import random
-
-
 class CentralizedQAgent:
-    def __init__(self, device, num_agents, action_size, state_dim, buffer_size=1000,
-                 batch_size=128, lr=0.0001, epsilon=1.0, epsilon_decay=0.999, gamma=0.99, verbose=False):
+    def __init__(self, device, num_agents, action_size, state_dim, q_layers: list[tuple[int, int]], buffer_size=1000,
+                 batch_size=128, lr=0.001, epsilon=1.0, epsilon_decay=0.999, epsilon_min=0.05, gamma=0.99, verbose=False):
         self.device = device
         
         self.num_agents = num_agents
@@ -16,13 +14,14 @@ class CentralizedQAgent:
         self.batch_size = batch_size
         self.state_dim = state_dim
 
-        self.q_network = CentralizedQNetwork(num_agents, action_size, state_dim, verbose=verbose).to(self.device)
+        self.q_network = CentralizedQNetwork(q_layers, num_agents, action_size, verbose=verbose).to(self.device)
         self.q_optimizer = torch.optim.Adam(self.q_network.parameters(), lr=lr)
 
         self.memory = ReplayBuffer(buffer_size)
 
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
         self.gamma = gamma
 
     def act(self, state):
@@ -38,6 +37,7 @@ class CentralizedQAgent:
         if len(self.memory) > self.batch_size:
             self.train()
         self.epsilon *= self.epsilon_decay
+        self.epsilon = max(self.epsilon, self.epsilon_min)
 
     def train(self):
         experiences = self.memory.sample(self.batch_size)
