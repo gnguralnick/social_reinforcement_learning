@@ -21,6 +21,8 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         self.num_agents = num_agents
         self.timestamp = 0
 
+        super().__init__()
+
         self.dirt_end = 1
         self.area = area
         self.potential_waste_area = 150
@@ -43,10 +45,8 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
         self.epoch = 0
-
+        self.total_reward_by_agent = {id: 0 for id in self.get_agent_ids()}
         self.use_heuristic = use_heuristic
-
-        super().__init__()
 
     def reset(self, seed: int | None = None, options: dict = {}) -> tuple:
         """
@@ -64,6 +64,7 @@ class ZeroDCleanupEnv(MultiAgentEnv):
 
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
+        self.total_reward_by_agent = {id: 0 for id in self.get_agent_ids()}
 
         observations = {
             id: np.array([self.num_apples, self.num_dirt, 0, 0]) for id in self.get_agent_ids()
@@ -75,7 +76,8 @@ class ZeroDCleanupEnv(MultiAgentEnv):
             "apple": self.num_apples,
             "dirt": self.num_dirt,
             "picker": 0,
-            "cleaner": 0
+            "cleaner": 0,
+            "total_reward_by_agent": self.total_reward_by_agent,
         }
 
         return observations, info
@@ -107,6 +109,8 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         total_reward = sum(step_reward.values())
         self.step_apple_consumed = total_reward
         self.total_apple_consumed += total_reward
+        for id in self.get_agent_ids():
+            self.total_reward_by_agent[id] += step_reward[id]
         self.step_dirt_calculation(dirt_agents)
         self.compute_probabilities()
         new_apple, new_dirt = self.spawn_apples_and_waste()
@@ -123,7 +127,8 @@ class ZeroDCleanupEnv(MultiAgentEnv):
             "apple": self.num_apples,
             "dirt": self.num_dirt,
             "picker": len(apple_agents),
-            "cleaner": len(dirt_agents)
+            "cleaner": len(dirt_agents),
+            "total_reward_by_agent": self.total_reward_by_agent,
         }
         return observations, rewards, dones, {"__all__": False}, infos
 
@@ -140,7 +145,7 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         reward = {
             id: 0 for id in self.get_agent_ids()
         }
-        apple_agents = list(apple_agent_ids)
+        apple_agents = list(np.random.permutation(list(apple_agent_ids)))
         num_apple_agents = len(apple_agents)
         d_apple = self.uniform_distribute(self.num_apples, self.area)
         d_picker = self.uniform_distribute(num_apple_agents, self.area)

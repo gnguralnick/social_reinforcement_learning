@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 
-class CentralizedQNetwork(nn.Module):
-    def __init__(self, layers: list[tuple[int, int]], num_agents, action_size, verbose=False):
-        super(CentralizedQNetwork, self).__init__()
+class QNetwork(nn.Module):
+    def __init__(self, layers: list[tuple[int, int]], num_outputs, action_size, verbose=False):
+        super(QNetwork, self).__init__()
         # self.fc1 = nn.Linear(num_agents * input_dim, 128)
         # self.fc2_1 = nn.Linear(128, 64)
         # self.fc2_2 = nn.Linear(64, 64)
@@ -16,12 +16,12 @@ class CentralizedQNetwork(nn.Module):
         self.layers = nn.ModuleList()
         for i, (in_dim, out_dim) in enumerate(layers):
             self.layers.append(nn.Linear(in_dim, out_dim))
-            nn.init.xavier_uniform_(self.layers[i].weight)
+            nn.init.xavier_uniform_(self.layers[i].weight) # type: ignore
 
         self.leaky_relu = nn.LeakyReLU()
         self.softmax = nn.Softmax()
 
-        self.num_agents = num_agents
+        self.num_outputs = num_outputs
         self.action_size = action_size
         self.verbose = verbose
 
@@ -41,7 +41,7 @@ class CentralizedQNetwork(nn.Module):
                 x = torch.relu(x)
             # else:
             #     x = self.softmax(x)
-        x = x.view(-1, self.num_agents, self.action_size)
+        x = x.view(-1, self.num_outputs, self.action_size)
         if self.verbose:
             print("Q Net Output")
             print(x)

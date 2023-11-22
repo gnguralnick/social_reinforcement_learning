@@ -1,20 +1,20 @@
-from models.centralized_q import CentralizedQNetwork
+from models.qnet import QNetwork
 import torch
 import numpy as np
-from models.util import ReplayBuffer
+from agents.util import ReplayBuffer
 
 import random
-class CentralizedQAgent:
-    def __init__(self, device, num_agents, action_size, state_dim, q_layers: list[tuple[int, int]], buffer_size=1000,
+class QAgent:
+    def __init__(self, device, num_action_outputs, action_size, state_dim, q_layers: list[tuple[int, int]], buffer_size=1000,
                  batch_size=128, lr=0.001, epsilon=1.0, epsilon_decay=0.999, epsilon_min=0.05, gamma=0.99, verbose=False):
         self.device = device
         
-        self.num_agents = num_agents
+        self.num_action_outputs = num_action_outputs
         self.action_size = action_size
         self.batch_size = batch_size
         self.state_dim = state_dim
 
-        self.q_network = CentralizedQNetwork(q_layers, num_agents, action_size, verbose=verbose).to(self.device)
+        self.q_network = QNetwork(q_layers, num_action_outputs, action_size, verbose=verbose).to(self.device)
         self.q_optimizer = torch.optim.Adam(self.q_network.parameters(), lr=lr)
 
         self.memory = ReplayBuffer(buffer_size)
@@ -30,7 +30,7 @@ class CentralizedQAgent:
         if random.random() > max(self.epsilon, 0.05):
             return torch.argmax(q_values, dim=2).cpu().numpy()
         else:
-            return np.random.choice(self.action_size, (1, self.num_agents))
+            return np.random.choice(self.action_size, (1, self.num_action_outputs))
         
     def step(self, state, action, reward, next_state):
         self.memory.add((state, action, reward, next_state))
