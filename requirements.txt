@@ -11,4 +11,5 @@ lz4
 scipy
 stable_baselines3
 qfunction
-tensorflow
+tdqm
+torch
