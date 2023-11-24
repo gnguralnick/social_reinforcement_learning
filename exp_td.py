@@ -274,31 +274,38 @@ class CleanupEnv(MultiAgentEnv):
             max_reward = -float("inf")
             max_reward_dirt_agents = -1
             s_original = np.array([self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent])
+
             for i in range(num_agents+1):  # iterate thru actions
                 new_p = self.num_agents-i
                 new_c = i
-                exp_imm_reward = (self.num_apples * new_p) / 150.0
+                exp_imm_reward = (self.num_apples * new_p) / 150.0  # expected value of hypergeometric dist.
                 total_future_reward = 0
+
                 for p in range(new_p+1):
                     for c in range(new_c+1):
+                        if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
+                            continue
                         s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
                         transition_prob = self.transition_P(s_original, s_new)
                         u_input0 = torch.tensor(s_new).float().unsqueeze(0).to(device)
                         u_t = centralAgent.u_network(u_input0)  # future est for this state
                         total_future_reward += transition_prob * u_t
+
                 action_reward = exp_imm_reward + GAMMA_U * total_future_reward
                 if action_reward > max_reward:
                     max_reward = action_reward
                     max_reward_dirt_agents = new_c
             # decision on number of dirt agents (the number of apple agents follows)
             num_agents_to_be_assigned_to_dirt = max_reward_dirt_agents
-            if random.random() < max(self.epsilon, 0.15):  # explore
-                temp_dirt = np.random.normal(max_reward_dirt_agents, 2)
+            # print(f"step ended, best choice of dirt agent number: {max_reward_dirt_agents}")
+            if random.random() < max(self.epsilon, 0.1):  # explore
+                temp_dirt = np.random.normal(max_reward_dirt_agents, 3)
                 if temp_dirt < 0:
                     temp_dirt = 0
                 if temp_dirt > self.num_agents:
                     temp_dirt = self.num_agents
                 num_agents_to_be_assigned_to_dirt = round(temp_dirt)
+                # num_agents_to_be_assigned_to_dirt = np.random.choice(11)
             agents_assigned_to_dirt = [agent for agent in self.agents.values() if agent.region == -1]
             agents_assigned_to_apples = [agent for agent in self.agents.values() if agent.region == 1]
             if len(agents_assigned_to_dirt) < num_agents_to_be_assigned_to_dirt:
@@ -359,7 +366,7 @@ class CleanupEnv(MultiAgentEnv):
         delta_a = s0[0] - s1[0]
         delta_d = s0[1] - s1[1]
         p1 = float(comb(s0[0], delta_a)*comb(self.area-s0[0], s1[2]-delta_a)) / comb(self.area, s1[2])
-        p2 = float(comb(s0[1], delta_d)*comb(self.area-s0[1], s1[2]-delta_d)) / comb(self.area, s1[2])
+        p2 = float(comb(s0[1], delta_d)*comb(self.area-s0[1], s1[3]-delta_d)) / comb(self.area, s1[3])
         p = p1 * p2
         return p
 
