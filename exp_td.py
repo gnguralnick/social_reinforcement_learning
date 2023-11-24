@@ -55,7 +55,7 @@ reward_multiplier = 10
 # for printing options
 pp = False
 verbose = False
-verbose_episode = 20
+verbose_episode = 200  # start printing at which epoch
 
 
 """Network Definitions"""
@@ -77,10 +77,10 @@ class UNetwork(nn.Module):
     def __init__(self, num_agents):
         super(UNetwork, self).__init__()
         self.pref_embedding = 1
-        self.coord1 = nn.Linear(2, 128)
-        self.coord2 = nn.Linear(128, 64)
+        self.coord1 = nn.Linear(2, 16)
+        self.coord2 = nn.Linear(16, 8)
         # self.coord2_1 = nn.Linear(6, 2)
-        self.coord3 = nn.Linear(64, self.pref_embedding)
+        self.coord3 = nn.Linear(8, self.pref_embedding)
         self.leaky_relu = nn.LeakyReLU()
         # torch.nn.init.xavier_uniform_(self.coord1.weight)
         # torch.nn.init.xavier_uniform_(self.coord2.weight)
@@ -89,7 +89,7 @@ class UNetwork(nn.Module):
 
     def forward(self, coord):
         c = coord.view(coord.size(0), -1)
-        c = torch.nn.functional.normalize(c, dim=1)
+        # c = torch.nn.functional.normalize(c, dim=1)
         c = self.leaky_relu(self.coord1(c))
         c = self.leaky_relu(self.coord2(c))
         # c = torch.relu(self.coord2_1(c))
@@ -98,7 +98,7 @@ class UNetwork(nn.Module):
         return c
 
 
-GAMMA_U = 0.9999
+GAMMA_U = 0.999
 
 
 class ReplayBuffer:
@@ -134,7 +134,7 @@ class CentralizedAgent:
 
         self.u_network = UNetwork(num_agents).to(device)
         # self.u_network.load_state_dict(torch.load("model_save_simple"))
-        self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.00005)
+        self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.0001)
         self.memory = ReplayBuffer(buffer_size_u)
 
     def step(self, step_apple_reward, info_vec, new_info_vec):
@@ -206,8 +206,8 @@ class CleanupEnv(MultiAgentEnv):
 
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
-        self.epsilon = 0.8
-        self.epsilon_decay = 0.9999
+        self.epsilon = 1.0
+        self.epsilon_decay = 0.99995
 
         self.heuristic = False
         self.epoch = 0
@@ -291,7 +291,7 @@ class CleanupEnv(MultiAgentEnv):
                     exp_imm_reward = (self.num_apples * new_p) / 150.0  # expected value of hypergeometric dist.
                     total_future_reward = 0
                     if verbose:
-                        print("new action************************")
+                        print(f"new action************************p: {new_p}, c: {new_c}")
                         print(f"new action immediate reward: {exp_imm_reward}")
                     d = []
                     tp = []
@@ -302,11 +302,35 @@ class CleanupEnv(MultiAgentEnv):
                             s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
                             s_new_input = np.array([self.num_apples-p, self.num_dirt-c])
                             transition_prob = self.transition_P(s_original, s_new)
-                            u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-                            d.append(u_input0)
-                            tp.append(transition_prob)
-                    d = torch.stack(d)
-                    # print(f"d: {d}")
+                            dirt_density = (self.num_dirt-c) / self.area
+                            if dirt_density >= thresholdDepletion:  # nothing will grow
+                                u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                                d.append(u_input0)
+                                tp.append(transition_prob)
+                            else:
+                                apple_prob = (1 - (dirt_density - thresholdRestoration)/(thresholdDepletion - thresholdRestoration)) * appleRespawnProbability
+                                dirt_prob = 0.5
+                                apple_potential = self.area - (self.num_apples-p)
+                                # for apple_g in range(10):  # estimate, for performance, large apple_g will have extremely small prob.
+                                #     a_p = comb(apple_potential, apple_g) * (apple_prob**apple_g) * ((1-apple_prob)**(apple_potential-apple_g))
+                                #     s_new_input[0] += apple_g
+                                #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                                #     d.append(u_input0)
+                                #     tp.append(transition_prob * a_p * dirt_prob)
+                                #     s_new_input[1] += 1
+                                #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                                #     d.append(u_input0)
+                                #     tp.append(transition_prob * a_p * dirt_prob)
+                                s_new_input[0] += apple_prob * apple_potential
+                                s_new_input[1] += dirt_prob
+                                u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                                d.append(u_input0)
+                                tp.append(transition_prob)
+                                if verbose:
+                                    print(f"s_new_input after: {s_new_input}")
+                    d = torch.stack(d).to(device)
+                    if verbose:
+                        print(f"d: {d}")
                     tp = torch.tensor(tp).float().to(device)
                     # print(f"tp: {tp}")
                     u_t = centralAgent.u_network(d)  # future est for this state
