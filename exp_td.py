@@ -207,7 +207,7 @@ class CleanupEnv(MultiAgentEnv):
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
         self.epsilon = 1.0
-        self.epsilon_decay = 0.99995
+        self.epsilon_decay = 0.99998
 
         self.heuristic = False
         self.epoch = 0
@@ -300,7 +300,7 @@ class CleanupEnv(MultiAgentEnv):
                             if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
                                 continue
                             s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
-                            s_new_input = np.array([self.num_apples-p, self.num_dirt-c])
+                            s_new_input = np.array([float(self.num_apples-p), float(self.num_dirt-c)])
                             transition_prob = self.transition_P(s_original, s_new)
                             dirt_density = (self.num_dirt-c) / self.area
                             if dirt_density >= thresholdDepletion:  # nothing will grow
