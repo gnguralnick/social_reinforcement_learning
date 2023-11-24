@@ -55,7 +55,7 @@ reward_multiplier = 10
 # for printing options
 pp = False
 verbose = False
-verbose_episode = 1999
+verbose_episode = 20
 
 
 """Network Definitions"""
@@ -77,28 +77,28 @@ class UNetwork(nn.Module):
     def __init__(self, num_agents):
         super(UNetwork, self).__init__()
         self.pref_embedding = 1
-        self.coord1 = nn.Linear(4, 32)
-        self.coord2 = nn.Linear(32, 16)
-        # self.coord2_1 = nn.Linear(64, 16)
-        self.coord3 = nn.Linear(16, self.pref_embedding)
+        self.coord1 = nn.Linear(2, 128)
+        self.coord2 = nn.Linear(128, 64)
+        # self.coord2_1 = nn.Linear(6, 2)
+        self.coord3 = nn.Linear(64, self.pref_embedding)
         self.leaky_relu = nn.LeakyReLU()
-        torch.nn.init.xavier_uniform_(self.coord1.weight)
-        torch.nn.init.xavier_uniform_(self.coord2.weight)
+        # torch.nn.init.xavier_uniform_(self.coord1.weight)
+        # torch.nn.init.xavier_uniform_(self.coord2.weight)
         # torch.nn.init.xavier_uniform_(self.coord2_1.weight)
-        torch.nn.init.xavier_uniform_(self.coord3.weight)
+        # torch.nn.init.xavier_uniform_(self.coord3.weight)
 
     def forward(self, coord):
         c = coord.view(coord.size(0), -1)
-        # c = torch.nn.functional.normalize(c, dim=1)
+        c = torch.nn.functional.normalize(c, dim=1)
         c = self.leaky_relu(self.coord1(c))
-        c = torch.relu(self.coord2(c))
+        c = self.leaky_relu(self.coord2(c))
         # c = torch.relu(self.coord2_1(c))
         c = self.coord3(c)
         c = c.view(coord.size(0), self.pref_embedding)
         return c
 
 
-GAMMA_U = 0.99
+GAMMA_U = 0.9999
 
 
 class ReplayBuffer:
@@ -125,15 +125,15 @@ learning.
 
 """
 class CentralizedAgent:
-    def __init__(self, num_agents, action_size, buffer_size_u=20000,
-                 batch_size=128):
+    def __init__(self, num_agents, action_size, buffer_size_u=10000,
+                 batch_size=64):
         self.num_agents = num_agents
         # self.input_shape = input_shape
         self.action_size = action_size
         self.batch_size = batch_size
 
         self.u_network = UNetwork(num_agents).to(device)
-        self.u_network.load_state_dict(torch.load("model_save_simple"))
+        # self.u_network.load_state_dict(torch.load("model_save_simple"))
         self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.00005)
         self.memory = ReplayBuffer(buffer_size_u)
 
@@ -159,7 +159,6 @@ class CentralizedAgent:
 
         u_targets = step_apple_reward + GAMMA_U * next_u_values
         u_loss = F.mse_loss(u_values, u_targets)
-
         self.u_optimizer.zero_grad()
         u_loss.backward()
         self.u_optimizer.step()
@@ -207,7 +206,7 @@ class CleanupEnv(MultiAgentEnv):
 
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
-        self.epsilon = 0.5
+        self.epsilon = 0.8
         self.epsilon_decay = 0.9999
 
         self.heuristic = False
@@ -252,7 +251,7 @@ class CleanupEnv(MultiAgentEnv):
         observations = {}
         rewards = {}
         dones = {}
-        d = {}
+        printed_reward = []
         self.timestamp += 1
         self.step_apple_consumed = 0
         if self.heuristic:
@@ -274,38 +273,59 @@ class CleanupEnv(MultiAgentEnv):
             max_reward = -float("inf")
             max_reward_dirt_agents = -1
             s_original = np.array([self.num_apples, self.num_dirt, self.apple_agent, self.dirt_agent])
-
-            for i in range(num_agents+1):  # iterate thru actions
-                new_p = self.num_agents-i
-                new_c = i
-                exp_imm_reward = (self.num_apples * new_p) / 150.0  # expected value of hypergeometric dist.
-                total_future_reward = 0
-
-                for p in range(new_p+1):
-                    for c in range(new_c+1):
-                        if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
-                            continue
-                        s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
-                        transition_prob = self.transition_P(s_original, s_new)
-                        u_input0 = torch.tensor(s_new).float().unsqueeze(0).to(device)
-                        u_t = centralAgent.u_network(u_input0)  # future est for this state
-                        total_future_reward += transition_prob * u_t
-
-                action_reward = exp_imm_reward + GAMMA_U * total_future_reward
-                if action_reward > max_reward:
-                    max_reward = action_reward
-                    max_reward_dirt_agents = new_c
-            # decision on number of dirt agents (the number of apple agents follows)
-            num_agents_to_be_assigned_to_dirt = max_reward_dirt_agents
-            # print(f"step ended, best choice of dirt agent number: {max_reward_dirt_agents}")
+            if verbose:
+                print(f"Original: {s_original}")
+            # print("New step!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             if random.random() < max(self.epsilon, 0.1):  # explore
-                temp_dirt = np.random.normal(max_reward_dirt_agents, 3)
-                if temp_dirt < 0:
-                    temp_dirt = 0
-                if temp_dirt > self.num_agents:
-                    temp_dirt = self.num_agents
-                num_agents_to_be_assigned_to_dirt = round(temp_dirt)
-                # num_agents_to_be_assigned_to_dirt = np.random.choice(11)
+                # temp_dirt = np.random.normal(max_reward_dirt_agents, 3)
+                # if temp_dirt < 0:
+                #     temp_dirt = 0
+                # if temp_dirt > self.num_agents:
+                #     temp_dirt = self.num_agents
+                # num_agents_to_be_assigned_to_dirt = round(temp_dirt)
+                num_agents_to_be_assigned_to_dirt = np.random.choice(11)
+            else:
+                for i in range(num_agents+1):  # iterate thru actions
+                    new_p = self.num_agents-i
+                    new_c = i
+                    exp_imm_reward = (self.num_apples * new_p) / 150.0  # expected value of hypergeometric dist.
+                    total_future_reward = 0
+                    if verbose:
+                        print("new action************************")
+                        print(f"new action immediate reward: {exp_imm_reward}")
+                    d = []
+                    tp = []
+                    for p in range(new_p+1):
+                        for c in range(new_c+1):
+                            if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
+                                continue
+                            s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
+                            s_new_input = np.array([self.num_apples-p, self.num_dirt-c])
+                            transition_prob = self.transition_P(s_original, s_new)
+                            u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                            d.append(u_input0)
+                            tp.append(transition_prob)
+                    d = torch.stack(d)
+                    # print(f"d: {d}")
+                    tp = torch.tensor(tp).float().to(device)
+                    # print(f"tp: {tp}")
+                    u_t = centralAgent.u_network(d)  # future est for this state
+                    # print(f"u_t: {u_t}")
+                    u_t = torch.flatten(u_t)
+                    future_rewards = u_t * tp
+                    # print(f"future rewards: {future_rewards}")
+                    total_future_reward = sum(future_rewards)
+                    action_reward = (exp_imm_reward + GAMMA_U * total_future_reward).item()
+                    printed_reward.append(action_reward)
+                    if action_reward >= max_reward:
+                        max_reward = action_reward
+                        max_reward_dirt_agents = new_c
+                # decision on number of dirt agents (the number of apple agents follows)
+                num_agents_to_be_assigned_to_dirt = max_reward_dirt_agents
+            if verbose:
+                print(f"Rewards are: {printed_reward}")
+                print(f"step ended, best choice of dirt agent number: {num_agents_to_be_assigned_to_dirt}")
+
             agents_assigned_to_dirt = [agent for agent in self.agents.values() if agent.region == -1]
             agents_assigned_to_apples = [agent for agent in self.agents.values() if agent.region == 1]
             if len(agents_assigned_to_dirt) < num_agents_to_be_assigned_to_dirt:
@@ -459,7 +479,7 @@ for epoch in range(num_epochs):
     env_states, info = env.reset()
     states = preprocess_inputs(env_states)
     cur_step_apple_reward = 0
-    info_vec = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
+    info_vec = np.array([info["apple"], info["dirt"]])
 
     good_epoch_apple = []
     good_epoch_dirt = []
@@ -485,18 +505,15 @@ for epoch in range(num_epochs):
         good_epoch_x2.append(info["x2"])
         good_epoch_x3.append(env.apple_agent)
 
-        new_info_vec = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
+        new_info_vec = np.array([info["apple"], info["dirt"]])
         epoch_reward = env_rewards["apple"]
         cur_step_apple_reward = env_rewards["step_apple"]
 
         if not env.heuristic:
-            # print(f"prev_reward: {prev_step_reward}, prev_interim:{prev_interim}, cur_interim:{interim_input}")
             centralAgent.step(cur_step_apple_reward, info_vec, new_info_vec)
 
         # Update state
         info_vec = new_info_vec
-        if verbose:
-            print(f"{step}: num apple: {env.num_apples}, num dirt: {env.num_dirt}")
 
         if dones["__all__"]:
             break
