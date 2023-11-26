@@ -55,7 +55,7 @@ reward_multiplier = 10
 # for printing options
 pp = False
 verbose = False
-verbose_episode = 200  # start printing at which epoch
+verbose_episode = 1900  # start printing at which epoch
 
 
 """Network Definitions"""
@@ -77,10 +77,10 @@ class UNetwork(nn.Module):
     def __init__(self, num_agents):
         super(UNetwork, self).__init__()
         self.pref_embedding = 1
-        self.coord1 = nn.Linear(2, 16)
-        self.coord2 = nn.Linear(16, 8)
-        # self.coord2_1 = nn.Linear(6, 2)
-        self.coord3 = nn.Linear(8, self.pref_embedding)
+        self.coord1 = nn.Linear(4, 64)
+        self.coord2 = nn.Linear(64, 32)
+        self.coord2_1 = nn.Linear(32, 16)
+        self.coord3 = nn.Linear(16, self.pref_embedding)
         self.leaky_relu = nn.LeakyReLU()
         # torch.nn.init.xavier_uniform_(self.coord1.weight)
         # torch.nn.init.xavier_uniform_(self.coord2.weight)
@@ -90,15 +90,15 @@ class UNetwork(nn.Module):
     def forward(self, coord):
         c = coord.view(coord.size(0), -1)
         # c = torch.nn.functional.normalize(c, dim=1)
-        c = self.leaky_relu(self.coord1(c))
-        c = self.leaky_relu(self.coord2(c))
-        # c = torch.relu(self.coord2_1(c))
+        c = torch.relu(self.coord1(c))
+        c = torch.relu(self.coord2(c))
+        c = torch.relu(self.coord2_1(c))
         c = self.coord3(c)
         c = c.view(coord.size(0), self.pref_embedding)
         return c
 
 
-GAMMA_U = 0.999
+GAMMA_U = 0.9999
 
 
 class ReplayBuffer:
@@ -125,15 +125,15 @@ learning.
 
 """
 class CentralizedAgent:
-    def __init__(self, num_agents, action_size, buffer_size_u=10000,
-                 batch_size=64):
+    def __init__(self, num_agents, action_size, buffer_size_u=1000,
+                 batch_size=32):
         self.num_agents = num_agents
         # self.input_shape = input_shape
         self.action_size = action_size
         self.batch_size = batch_size
 
         self.u_network = UNetwork(num_agents).to(device)
-        # self.u_network.load_state_dict(torch.load("model_save_simple"))
+        # self.u_network.load_state_dict(torch.load("model_save_td_high_gamma"))
         self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.0001)
         self.memory = ReplayBuffer(buffer_size_u)
 
@@ -207,7 +207,7 @@ class CleanupEnv(MultiAgentEnv):
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
         self.epsilon = 1.0
-        self.epsilon_decay = 0.99998
+        self.epsilon_decay = 0.9999
 
         self.heuristic = False
         self.epoch = 0
@@ -285,67 +285,87 @@ class CleanupEnv(MultiAgentEnv):
                 # num_agents_to_be_assigned_to_dirt = round(temp_dirt)
                 num_agents_to_be_assigned_to_dirt = np.random.choice(11)
             else:
+                all_imm_rewards = []
+                all_next_states = []
                 for i in range(num_agents+1):  # iterate thru actions
                     new_p = self.num_agents-i
-                    new_c = i
+                    new_c = i  # 0 -> 10 cleaners
                     exp_imm_reward = (self.num_apples * new_p) / 150.0  # expected value of hypergeometric dist.
-                    total_future_reward = 0
+                    all_imm_rewards.append(exp_imm_reward)
+                    apple_left = self.num_apples - ((self.num_apples * new_p) / 150.0)
+                    dirt_left = self.num_dirt - ((self.num_dirt * new_c) / 150.0)
+                    cur_dirt_density = dirt_left / 150.0
+                    if cur_dirt_density >= thresholdDepletion:
+                        exp_new_dirt = dirt_left
+                        exp_new_apple = apple_left
+                    else:
+                        exp_new_dirt = dirt_left + 0.5
+                        exp_new_apple = apple_left + (150-apple_left)*(1-(cur_dirt_density-thresholdRestoration)/(thresholdDepletion-thresholdRestoration))*appleRespawnProbability
+                    s_next = [exp_new_apple, exp_new_dirt, new_p, new_c]
+                    u_input0 = torch.tensor(s_next).float().unsqueeze(0).to(device)
+                    all_next_states.append(u_input0)
                     if verbose:
                         print(f"new action************************p: {new_p}, c: {new_c}")
                         print(f"new action immediate reward: {exp_imm_reward}")
-                    d = []
-                    tp = []
-                    for p in range(new_p+1):
-                        for c in range(new_c+1):
-                            if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
-                                continue
-                            s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
-                            s_new_input = np.array([float(self.num_apples-p), float(self.num_dirt-c)])
-                            transition_prob = self.transition_P(s_original, s_new)
-                            dirt_density = (self.num_dirt-c) / self.area
-                            if dirt_density >= thresholdDepletion:  # nothing will grow
-                                u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-                                d.append(u_input0)
-                                tp.append(transition_prob)
-                            else:
-                                apple_prob = (1 - (dirt_density - thresholdRestoration)/(thresholdDepletion - thresholdRestoration)) * appleRespawnProbability
-                                dirt_prob = 0.5
-                                apple_potential = self.area - (self.num_apples-p)
-                                # for apple_g in range(10):  # estimate, for performance, large apple_g will have extremely small prob.
-                                #     a_p = comb(apple_potential, apple_g) * (apple_prob**apple_g) * ((1-apple_prob)**(apple_potential-apple_g))
-                                #     s_new_input[0] += apple_g
-                                #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-                                #     d.append(u_input0)
-                                #     tp.append(transition_prob * a_p * dirt_prob)
-                                #     s_new_input[1] += 1
-                                #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-                                #     d.append(u_input0)
-                                #     tp.append(transition_prob * a_p * dirt_prob)
-                                s_new_input[0] += apple_prob * apple_potential
-                                s_new_input[1] += dirt_prob
-                                u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-                                d.append(u_input0)
-                                tp.append(transition_prob)
-                                if verbose:
-                                    print(f"s_new_input after: {s_new_input}")
-                    d = torch.stack(d).to(device)
-                    if verbose:
-                        print(f"d: {d}")
-                    tp = torch.tensor(tp).float().to(device)
-                    # print(f"tp: {tp}")
-                    u_t = centralAgent.u_network(d)  # future est for this state
-                    # print(f"u_t: {u_t}")
-                    u_t = torch.flatten(u_t)
-                    future_rewards = u_t * tp
-                    # print(f"future rewards: {future_rewards}")
-                    total_future_reward = sum(future_rewards)
-                    action_reward = (exp_imm_reward + GAMMA_U * total_future_reward).item()
-                    printed_reward.append(action_reward)
-                    if action_reward >= max_reward:
-                        max_reward = action_reward
-                        max_reward_dirt_agents = new_c
+                    # d = []
+                    # tp = []
+                    # for p in range(new_p+1):
+                    #     for c in range(new_c+1):
+                    #         if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
+                    #             continue
+                    #         s_new = np.array([float(self.num_apples-p), float(self.num_dirt-c), new_p, new_c])
+                    #         # s_new_input = np.array([float(self.num_apples-p), float(self.num_dirt-c)])
+                    #         transition_prob = self.transition_P(s_original, s_new)
+                    #         dirt_density = (self.num_dirt-c) / self.area
+                    #         if dirt_density >= thresholdDepletion:  # nothing will grow
+                    #             u_input0 = torch.tensor(s_new).float().unsqueeze(0).to(device)
+                    #             d.append(u_input0)
+                    #             tp.append(transition_prob)
+                    #         else:
+                    #             apple_prob = (1 - (dirt_density - thresholdRestoration)/(thresholdDepletion - thresholdRestoration)) * appleRespawnProbability
+                    #             dirt_prob = 0.5
+                    #             apple_potential = self.area - (self.num_apples-p)
+                    #             # for apple_g in range(10):  # estimate, for performance, large apple_g will have extremely small prob.
+                    #             #     a_p = comb(apple_potential, apple_g) * (apple_prob**apple_g) * ((1-apple_prob)**(apple_potential-apple_g))
+                    #             #     s_new_input[0] += apple_g
+                    #             #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                    #             #     d.append(u_input0)
+                    #             #     tp.append(transition_prob * a_p * dirt_prob)
+                    #             #     s_new_input[1] += 1
+                    #             #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                    #             #     d.append(u_input0)
+                    #             #     tp.append(transition_prob * a_p * dirt_prob)
+                    #             s_new[0] += apple_prob * apple_potential
+                    #             s_new[1] += dirt_prob
+                    #             u_input0 = torch.tensor(s_new).float().unsqueeze(0).to(device)
+                    #             d.append(u_input0)
+                    #             tp.append(transition_prob)
+                    #             if verbose:
+                    #                 print(f"s_new_input after: {s_new}")
+                    # d = torch.stack(d).to(device)
+                    # if verbose:
+                    #     print(f"d: {d}")
+                    # tp = torch.tensor(tp).float().to(device)
+                    # # print(f"tp: {tp}")
+                    # u_t = centralAgent.u_network(d)  # future est for this state
+                    # # print(f"u_t: {u_t}")
+                    # u_t = torch.flatten(u_t)
+                    # future_rewards = u_t * tp
+                    # # print(f"future rewards: {future_rewards}")
+                    # total_future_reward = sum(future_rewards)
+                all_next_states = torch.stack(all_next_states).to(device)
+                u_t = centralAgent.u_network(all_next_states)
+                u_t = torch.flatten(u_t)
+                all_imm_rewards = torch.tensor(all_imm_rewards).float().to(device)
+                all_future_rewards = all_imm_rewards + (GAMMA_U * u_t)
+                max_reward_dirt_agents = torch.argmax(all_future_rewards)
+                    # action_reward = (exp_imm_reward + GAMMA_U * total_future_reward).item()
+                    # printed_reward.append(action_reward)
+                    # if action_reward >= max_reward:
+                    #     max_reward = action_reward
+                    #     max_reward_dirt_agents = new_c
                 # decision on number of dirt agents (the number of apple agents follows)
-                num_agents_to_be_assigned_to_dirt = max_reward_dirt_agents
+                num_agents_to_be_assigned_to_dirt = max_reward_dirt_agents.item()
             if verbose:
                 print(f"Rewards are: {printed_reward}")
                 print(f"step ended, best choice of dirt agent number: {num_agents_to_be_assigned_to_dirt}")
@@ -387,23 +407,27 @@ class CleanupEnv(MultiAgentEnv):
         return distribution
 
     def step_reward_calculation(self):
-        reward = 0
-        d_apple = self.uniform_distribute(self.num_apples, self.area)
-        d_picker = self.uniform_distribute(self.apple_agent, self.area)
-        for i in range(len(d_apple)):
-            if d_apple[i] == 1 and d_picker[i] == 1:
-                reward += 1
-                self.num_apples -= 1
+        # reward = 0
+        # d_apple = self.uniform_distribute(self.num_apples, self.area)
+        # d_picker = self.uniform_distribute(self.apple_agent, self.area)
+        reward = (self.num_apples * self.apple_agent) / self.area
+        # for i in range(len(d_apple)):
+        #     if d_apple[i] == 1 and d_picker[i] == 1:
+        #         reward += 1
+        #         self.num_apples -= 1
+        self.num_apples -= reward
         return reward
 
     def step_dirt_calculation(self):
-        dirt_reward = 0
-        d_dirt = self.uniform_distribute(self.num_dirt, self.area)
-        d_cleaner = self.uniform_distribute(self.dirt_agent, self.area)
-        for i in range(len(d_dirt)):
-            if d_dirt[i] == 1 and d_cleaner[i] == 1:
-                self.num_dirt -= 1
-                dirt_reward += 1
+        # dirt_reward = 0
+        # d_dirt = self.uniform_distribute(self.num_dirt, self.area)
+        # d_cleaner = self.uniform_distribute(self.dirt_agent, self.area)
+        dirt_reward = (self.num_dirt * self.dirt_agent) / self.area
+        # for i in range(len(d_dirt)):
+        #     if d_dirt[i] == 1 and d_cleaner[i] == 1:
+        #         self.num_dirt -= 1
+        #         dirt_reward += 1
+        self.num_dirt -= dirt_reward
         return dirt_reward
 
     def transition_P(self, s0, s1):
@@ -438,7 +462,7 @@ class CleanupEnv(MultiAgentEnv):
     def spawn_apples_and_waste(self):
         # spawn apples, multiple can spawn per step
         new_apple, new_dirt = 0, 0
-        for i in range(self.area - self.num_apples):
+        for i in range(self.area - int(self.num_apples)):
             rand_num = np.random.rand(1)[0]
             if rand_num < self.current_apple_spawn_prob and self.num_apples < self.area:
                 self.num_apples += 1
@@ -503,7 +527,7 @@ for epoch in range(num_epochs):
     env_states, info = env.reset()
     states = preprocess_inputs(env_states)
     cur_step_apple_reward = 0
-    info_vec = np.array([info["apple"], info["dirt"]])
+    info_vec = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
 
     good_epoch_apple = []
     good_epoch_dirt = []
@@ -529,11 +553,13 @@ for epoch in range(num_epochs):
         good_epoch_x2.append(info["x2"])
         good_epoch_x3.append(env.apple_agent)
 
-        new_info_vec = np.array([info["apple"], info["dirt"]])
+        new_info_vec = np.array([info["apple"], info["dirt"], info["picker"], info["cleaner"]])
         epoch_reward = env_rewards["apple"]
         cur_step_apple_reward = env_rewards["step_apple"]
 
         if not env.heuristic:
+            # print("Training feeding....")
+            # print(cur_step_apple_reward, info_vec, new_info_vec)
             centralAgent.step(cur_step_apple_reward, info_vec, new_info_vec)
 
         # Update state
@@ -546,27 +572,29 @@ for epoch in range(num_epochs):
         f_good.write(f"Epoch number: {epoch}\n")
         f_good.write(f"Epoch reward: {epoch_reward}\n")
         f_good.write(f"Epoch apple/dirt\n")
-        f_good.write(f"{good_epoch_apple}\n\n")
+        f_good.write(f"{[round(elem, 2) for elem in good_epoch_apple]}\n\n")
         f_good.write(f"Epoch dirt\n")
-        f_good.write(f"{good_epoch_dirt}\n\n")
+        f_good.write(f"{[round(elem, 2) for elem in good_epoch_dirt]}\n\n")
         f_good.write(f"Epoch x1\n")
         f_good.write(f"{good_epoch_x1}\n\n")
         f_good.write(f"Epoch x2\n")
         f_good.write(f"{good_epoch_x2}\n\n")
         f_good.write(f"Epoch x3\n")
         f_good.write(f"{good_epoch_x3}\n\n")
-    if epoch_reward > 2000 and epoch_reward >= max_epoch_reward and env.epoch > 10:
+    if epoch_reward > 2600 and epoch_reward >= max_epoch_reward and env.epoch > 10:
         max_epoch_reward = epoch_reward
         torch.save(centralAgent.u_network.state_dict(), "model_save_td")
 
     print(f"Epoch reward: {epoch_reward}")
     reward_graph.append(epoch_reward)
     print("Reward graph: ")
-    print(reward_graph)
+    print([round(elem, 2) for elem in reward_graph])
     f.write("Reward graph: \n")
     f.write(f"{reward_graph}\n")
 
-    print(weight_graph[13])
+    weight1 = torch.norm(centralAgent.u_network._modules['coord2'].weight).item()
+    weight_graph[1].append(weight1)
+    print(weight_graph[1])
 
     print(f"Ending num apple: {env.num_apples}, num dirt: {env.num_dirt}")
     print(f"Ending agents apple : {env.apple_agent}, dirt: {env.dirt_agent}")
