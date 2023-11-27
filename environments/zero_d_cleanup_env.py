@@ -1,6 +1,8 @@
 from ray.rllib.env import MultiAgentEnv
 
 import numpy as np
+import torch
+from scipy.special import comb
 
 import random
 
@@ -202,3 +204,52 @@ class ZeroDCleanupEnv(MultiAgentEnv):
                 self.num_dirt += 1
                 new_dirt += 1
         return new_apple, new_dirt
+    
+    def transition_P(self, s0, s1):
+        delta_a = s0[0] - s1[0]
+        delta_d = s0[1] - s1[1]
+        p1 = float(comb(s0[0], delta_a)*comb(self.area-s0[0], s1[2]-delta_a)) / comb(self.area, s1[2])
+        p2 = float(comb(s0[1], delta_d)*comb(self.area-s0[1], s1[3]-delta_d)) / comb(self.area, s1[3])
+        p = p1 * p2
+        return p
+    
+    def simulate_future_state(self, new_p, new_c):
+        s_original = np.array([self.num_apples, self.num_dirt])
+
+        d = []
+        tp = []
+        for p in range(new_p+1):
+            for c in range(new_c+1):
+                if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
+                    continue
+                s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
+                s_new_input = np.array([float(self.num_apples-p), float(self.num_dirt-c)])
+                transition_prob = self.transition_P(s_original, s_new)
+                dirt_density = (self.num_dirt-c) / self.area
+                if dirt_density >= self.thresholdDepletion:  # nothing will grow
+                    u_input0 = torch.tensor(s_new_input).float().unsqueeze(0)
+                    d.append(u_input0)
+                    tp.append(transition_prob)
+                else:
+                    apple_prob = (1 - (dirt_density - self.thresholdRestoration)/(self.thresholdDepletion - self.thresholdRestoration)) * self.starting_apple_spawn_prob
+                    dirt_prob = 0.5
+                    apple_potential = self.area - (self.num_apples-p)
+                    # for apple_g in range(10):  # estimate, for performance, large apple_g will have extremely small prob.
+                    #     a_p = comb(apple_potential, apple_g) * (apple_prob**apple_g) * ((1-apple_prob)**(apple_potential-apple_g))
+                    #     s_new_input[0] += apple_g
+                    #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                    #     d.append(u_input0)
+                    #     tp.append(transition_prob * a_p * dirt_prob)
+                    #     s_new_input[1] += 1
+                    #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
+                    #     d.append(u_input0)
+                    #     tp.append(transition_prob * a_p * dirt_prob)
+                    s_new_input[0] += apple_prob * apple_potential
+                    s_new_input[1] += dirt_prob
+                    u_input0 = torch.tensor(s_new_input).float().unsqueeze(0)
+                    d.append(u_input0)
+                    tp.append(transition_prob)
+        return d, tp
+    
+    def get_immediate_reward(self, n_pickers):
+        return (self.num_apples * n_pickers) / self.area
