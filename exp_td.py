@@ -77,10 +77,10 @@ class UNetwork(nn.Module):
     def __init__(self, num_agents):
         super(UNetwork, self).__init__()
         self.pref_embedding = 1
-        self.coord1 = nn.Linear(4, 64)
-        self.coord2 = nn.Linear(64, 32)
-        self.coord2_1 = nn.Linear(32, 16)
-        self.coord3 = nn.Linear(16, self.pref_embedding)
+        self.coord1 = nn.Linear(4, 256)
+        self.coord2 = nn.Linear(256, 128)
+        self.coord2_1 = nn.Linear(128, 64)
+        self.coord3 = nn.Linear(64, self.pref_embedding)
         self.leaky_relu = nn.LeakyReLU()
         # torch.nn.init.xavier_uniform_(self.coord1.weight)
         # torch.nn.init.xavier_uniform_(self.coord2.weight)
@@ -98,7 +98,7 @@ class UNetwork(nn.Module):
         return c
 
 
-GAMMA_U = 0.9999
+GAMMA_U = 0.999
 
 
 class ReplayBuffer:
@@ -125,8 +125,8 @@ learning.
 
 """
 class CentralizedAgent:
-    def __init__(self, num_agents, action_size, buffer_size_u=1000,
-                 batch_size=32):
+    def __init__(self, num_agents, action_size, buffer_size_u=4000,
+                 batch_size=8):
         self.num_agents = num_agents
         # self.input_shape = input_shape
         self.action_size = action_size
@@ -135,6 +135,7 @@ class CentralizedAgent:
         self.u_network = UNetwork(num_agents).to(device)
         # self.u_network.load_state_dict(torch.load("model_save_td_high_gamma"))
         self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=0.0001)
+        self.scheduler = optim.lr_scheduler.StepLR(self.u_optimizer, step_size=100, gamma=0.6)
         self.memory = ReplayBuffer(buffer_size_u)
 
     def step(self, step_apple_reward, info_vec, new_info_vec):
@@ -207,7 +208,7 @@ class CleanupEnv(MultiAgentEnv):
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
         self.epsilon = 1.0
-        self.epsilon_decay = 0.9999
+        self.epsilon_decay = 0.99995
 
         self.heuristic = False
         self.epoch = 0
@@ -568,6 +569,7 @@ for epoch in range(num_epochs):
         if dones["__all__"]:
             break
     env.epoch += 1
+    centralAgent.scheduler.step()
     if epoch_reward >= 0:
         f_good.write(f"Epoch number: {epoch}\n")
         f_good.write(f"Epoch reward: {epoch_reward}\n")
