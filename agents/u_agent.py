@@ -1,3 +1,4 @@
+import math
 import random
 from environments.zero_d_cleanup_env import ZeroDCleanupEnv
 from models import UNetwork
@@ -20,6 +21,7 @@ class UAgent:
 
         self.u_network = UNetwork(u_layers).to(self.device)
         self.u_optimizer = torch.optim.Adam(self.u_network.parameters(), lr=lr)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.u_optimizer, step_size=100, gamma=0.6)
 
         self.memory = ReplayBuffer(buffer_size)
     
@@ -28,27 +30,31 @@ class UAgent:
         return self.u_network(state).cpu().detach().numpy()
     
     def act(self, env: ZeroDCleanupEnv):
-        max_reward = -np.inf
-        max_reward_dirt_agents = -1
         if random.random() < max(self.epsilon, self.epsilon_min):
-            return np.random.choice(self.action_size, (1, self.num_action_outputs))
+            actions = np.random.choice(self.action_size, (1, self.num_action_outputs))
+            return actions
         
+        all_imm_rewards = []
+        all_next_states = []
         for i in range(self.num_action_outputs + 1):
             new_p = self.num_action_outputs - i
             new_c = i
             exp_imm_reward = env.get_immediate_reward(new_p)
-            total_future_reward = 0
-            poss_future_states, transition_probabilities = env.simulate_future_state(new_p, new_c)
-            poss_future_states = torch.stack(poss_future_states).float().to(self.device)
-            transition_probabilities = torch.tensor(transition_probabilities).float().to(self.device)
-            predicted_future_rewards = self.u_network(poss_future_states).flatten()
-            total_future_reward = torch.dot(predicted_future_rewards, transition_probabilities)
-
-            action_reward = (exp_imm_reward + self.gamma * total_future_reward).item()
-            if action_reward > max_reward:
-                max_reward = action_reward
-                max_reward_dirt_agents = new_c
-        
+            all_imm_rewards.append(exp_imm_reward)
+            #total_future_reward = 0
+            # poss_future_states, transition_probabilities = env.simulate_future_state(new_p, new_c)
+            # poss_future_states = torch.stack(poss_future_states).float().to(self.device)
+            # transition_probabilities = torch.tensor(transition_probabilities).float().to(self.device)
+            #predicted_future_rewards = self.u_network(poss_future_states).flatten()
+            #total_future_reward = torch.dot(predicted_future_rewards, transition_probabilities)
+            future_state = env.simulate_future_state(new_p, new_c)
+            future_state = torch.tensor(future_state).float().unsqueeze(0).to(self.device)
+            all_next_states.append(future_state)
+        all_next_states = torch.stack(all_next_states).float().to(self.device)
+        all_pred_rewards = self.u_network(all_next_states).flatten()
+        all_imm_rewards = torch.tensor(all_imm_rewards).float().to(self.device)
+        all_future_rewards = all_imm_rewards + self.gamma * all_pred_rewards
+        max_reward_dirt_agents = round(torch.argmax(all_future_rewards).item().real)
         outs = np.zeros((1, self.num_action_outputs))
         for i in range(max_reward_dirt_agents):
             outs[0][i] = 1

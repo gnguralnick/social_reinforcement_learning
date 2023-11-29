@@ -22,7 +22,7 @@ class UNetwork(nn.Module):
 
     def forward(self, coord):
         c = coord.view(coord.size(0), -1)
-        c = torch.nn.functional.normalize(c, dim=1)
+        #c = torch.nn.functional.normalize(c, dim=1)
         # c = self.leaky_relu(self.coord1(c))
         # c = self.leaky_relu(self.coord2(c))
         # # c = torch.relu(self.coord2_1(c))
