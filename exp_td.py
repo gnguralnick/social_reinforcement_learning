@@ -258,6 +258,7 @@ class CleanupEnv(MultiAgentEnv):
         if self.heuristic:
             agent_frequency_in_dirt = self.num_dirt / (self.num_apples + self.num_dirt)
             num_agents_to_be_assigned_to_dirt = round(self.num_agents * agent_frequency_in_dirt)
+            # num_agents_to_be_assigned_to_dirt = 4  # fixed
             agents_assigned_to_dirt = [agent for agent in self.agents.values() if agent.region == -1]
             agents_assigned_to_apples = [agent for agent in self.agents.values() if agent.region == 1]
             if len(agents_assigned_to_dirt) < num_agents_to_be_assigned_to_dirt:
@@ -389,7 +390,7 @@ class CleanupEnv(MultiAgentEnv):
         self.total_apple_consumed += step_reward
         self.step_dirt_calculation()
         self.compute_probabilities()
-        new_apple, new_dirt = self.spawn_apples_and_waste()
+        self.spawn_apples_and_waste()
         self.epsilon = self.epsilon * self.epsilon_decay
 
         rewards["apple"] = self.total_apple_consumed
@@ -462,20 +463,21 @@ class CleanupEnv(MultiAgentEnv):
 
     def spawn_apples_and_waste(self):
         # spawn apples, multiple can spawn per step
-        new_apple, new_dirt = 0, 0
-        for i in range(self.area - int(self.num_apples)):
-            rand_num = np.random.rand(1)[0]
-            if rand_num < self.current_apple_spawn_prob and self.num_apples < self.area:
-                self.num_apples += 1
-                new_apple += 1
+        # for i in range(self.area - int(self.num_apples)):
+        #     rand_num = np.random.rand(1)[0]
+        #     if rand_num < self.current_apple_spawn_prob and self.num_apples < self.area:
+        #         self.num_apples += 1
+        #         new_apple += 1
+        self.num_apples += (self.area - int(self.num_apples)) * self.current_apple_spawn_prob
+        self.num_apples = min(self.num_apples, 150)
 
         # spawn one waste point, only one can spawn per step
-        if self.num_dirt < self.potential_waste_area:
-            rand_num = np.random.rand(1)[0]
-            if rand_num < self.current_waste_spawn_prob:
-                self.num_dirt += 1
-                new_dirt += 1
-        return new_apple, new_dirt
+        # if self.num_dirt < self.potential_waste_area:
+        #     rand_num = np.random.rand(1)[0]
+        #     if rand_num < self.current_waste_spawn_prob:
+        #         self.num_dirt += 1
+        #         new_dirt += 1
+        self.num_dirt += 0.5
 
     def render(self):
         """
