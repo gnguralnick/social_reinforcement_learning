@@ -22,7 +22,7 @@ class OneDCleanupEnv(MultiAgentEnv):
     Agents can move up and down within their area, and can cross over to the other area.
     """
 
-    def __init__(self, agent_ids, num_agents=10, area=150, thresholdDepletion: float=0.4, thresholdRestoration: float=0, wasteSpawnProbability: float=0.5, appleRespawnProbability: float=0.05, dirt_multiplier=10, use_heuristic=False):
+    def __init__(self, agent_ids, num_agents=10, area=150, thresholdDepletion: float=0.4, thresholdRestoration: float=0, wasteSpawnProbability: float=0.5, appleRespawnProbability: float=0.05, dirt_multiplier=10):
         """
         Initialise the environment.
         """
@@ -59,7 +59,6 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.total_apple_consumed = 0
         self.step_apple_consumed = 0
         self.epoch = 0
-        self.use_heuristic = use_heuristic
 
     def reset(self, seed: int | None = None, options: dict = {}) -> tuple:
         """
