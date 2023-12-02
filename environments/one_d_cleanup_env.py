@@ -112,10 +112,14 @@ class OneDCleanupEnv(MultiAgentEnv):
             loc = random.choice(remaining_locs)
             self.waste_map[loc] = 1
 
-        observations = {
-            #id: np.array([self.num_apples, self.num_dirt, 0, 0]) for id in self.get_agent_ids()
-            id: (self.num_apples, self.num_dirt, 0, 0, self.apple_map, self.waste_map) for id in self.get_agent_ids()
+        observations: dict[str, tuple] = {
+            'coordinator': (self.num_apples, self.num_dirt, 0, 0),
         }
+        for id in self.get_agent_ids():
+            agent = self._agents[id]
+            closest_objective = self.closest_objective(agent.region, agent.pos)
+            closest_agents = self.closest_agents(agent.region, agent.pos)
+            observations[id] = (closest_objective[0], closest_objective[1], closest_agents[0], closest_agents[1])
 
         info = {
             'total_apple_consumed': self.total_apple_consumed,
@@ -124,7 +128,10 @@ class OneDCleanupEnv(MultiAgentEnv):
             "dirt": self.num_dirt,
             "picker": 0,
             "cleaner": 0,
-            # "total_reward_by_agent": self.total_reward_by_agent,
+            "apple_map": self.apple_map,
+            "waste_map": self.waste_map,
+            "apple_agent_map": self.apple_agent_map,
+            "waste_agent_map": self.waste_agent_map,
         }
 
         return observations, info
@@ -170,9 +177,14 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.spawn_apples_and_waste()
 
         observations = {
-            id: (self.num_apples, self.num_dirt, num_pickers, num_cleaners, self.apple_map, self.waste_map) for id in self.get_agent_ids()
+            'coordinator': (self.num_apples, self.num_dirt, num_pickers, num_cleaners),
         }
-
+        for id in self.get_agent_ids():
+            agent = self._agents[id]
+            closest_objective = self.closest_objective(agent.region, agent.pos)
+            closest_agents = self.closest_agents(agent.region, agent.pos)
+            observations[id] = (closest_objective[0], closest_objective[1], closest_agents[0], closest_agents[1])
+        
         info = {
             'total_apple_consumed': self.total_apple_consumed,
             'step_apple_consumed': self.step_apple_consumed,
@@ -180,6 +192,10 @@ class OneDCleanupEnv(MultiAgentEnv):
             "dirt": self.num_dirt,
             "picker": num_pickers,
             "cleaner": num_cleaners,
+            "apple_map": self.apple_map,
+            "waste_map": self.waste_map,
+            "apple_agent_map": self.apple_agent_map,
+            "waste_agent_map": self.waste_agent_map,
         }
 
         return observations, rewards, dones, info
@@ -266,14 +282,20 @@ class OneDCleanupEnv(MultiAgentEnv):
                     self.waste_map[loc] = 1
                     self.num_dirt += 1
 
-    def closest_objective(self, region, pos, map_override=None):
+    def closest_objective(self, region, pos, apple_map_override=None, waste_map_override=None):
         """
         Returns a tuple (u, d) where u is the distance to the closest apple above the position and d is the distance to the closest apple below the position.
         """
-        if map_override is None:
-            map = self.apple_map if region == CleanupRegion.APPLE else self.waste_map
+        if region == CleanupRegion.APPLE:
+            if apple_map_override is None:
+                map = self.apple_map
+            else:
+                map = apple_map_override
         else:
-            map = map_override
+            if waste_map_override is None:
+                map = self.waste_map
+            else:
+                map = waste_map_override
 
         u = np.where(map[:pos] == 1)[0]
         u = -1 if len(u) == 0 else pos - u[-1]
@@ -281,7 +303,28 @@ class OneDCleanupEnv(MultiAgentEnv):
         d = -1 if len(d) == 0 else d[0] + 1
         return u, d
     
-    def get_immediate_reward(self, agent: GreedyCleanUpAgent, action: tuple[CleanupRegion, int], map_override=None, update_map=False):
+    def closest_agents(self, region, pos, apple_map_override=None, waste_map_override=None):
+        """
+        Returns a tuple (u, d) where u is the distance to the closest apple above the position and d is the distance to the closest apple below the position.
+        """
+        if region == CleanupRegion.APPLE:
+            if apple_map_override is None:
+                map = self.apple_agent_map
+            else:
+                map = apple_map_override
+        else:
+            if waste_map_override is None:
+                map = self.waste_agent_map
+            else:
+                map = waste_map_override
+
+        u = np.where(map[:pos] != 0)[0]
+        u = -1 if len(u) == 0 else pos - u[-1]
+        d = np.where(map[pos:] != 0)[0]
+        d = -1 if len(d) == 0 else d[0] + 1
+        return u, d
+    
+    def get_immediate_reward(self, agent: GreedyCleanUpAgent, action: tuple[CleanupRegion, int], apple_map_override=None, update_map=False):
         """
         Returns the immediate reward for an agent performing an action.
         """
@@ -290,7 +333,7 @@ class OneDCleanupEnv(MultiAgentEnv):
             # no reward for cleaning dirt
             return 0
         
-        map = map_override if map_override is not None else self.apple_map
+        map = apple_map_override if apple_map_override is not None else self.apple_map
         
         if role != agent.region and map[agent.pos] != 0:
             # switching regions and there is an apple at the agent's position in the new region
@@ -321,30 +364,42 @@ class OneDCleanupEnv(MultiAgentEnv):
         apple_map = self.apple_map.copy()
         for id, action in actions.items():
             agent = self._agents[id]
-            rewards[id] = self.get_immediate_reward(agent, action, map_override=apple_map, update_map=True)
+            rewards[id] = self.get_immediate_reward(agent, action, apple_map_override=apple_map, update_map=True)
     
     def simulate_future_state(self, actions: dict[str, tuple[CleanupRegion, int]]):
         """
         Simulate the future state of the environment after all agents perform their actions.
         """
-        # copy apple map so that we can update it without affecting the original
-        # this ensures we don't allow agents to eat the same apple in the simulation
+        # copy maps so that we can update it without affecting the originals to simulate the future state
         apple_map = self.apple_map.copy()
         waste_map = self.waste_map.copy()
+        apple_agent_map = self.apple_agent_map.copy()
+        waste_agent_map = self.waste_agent_map.copy()
         num_pickers = 0
         num_cleaners = 0
         for id, action in actions.items():
             agent = self._agents[id]
-            if action[0] == CleanupRegion.APPLE:
+            role, direction = action
+            if role == CleanupRegion.APPLE:
                 num_pickers += 1
+                self.get_immediate_reward(agent, action, apple_map_override=apple_map, update_map=True)
+                apple_agent_map[agent.pos] = 0
+                apple_agent_map[agent.pos + direction] = id
             else:
                 num_cleaners += 1
-            self.get_immediate_reward(agent, action, map_override=apple_map, update_map=True)
-            self.get_immediate_reward(agent, action, map_override=waste_map, update_map=True)
+                waste_map[agent.pos + direction] = 0
+                waste_agent_map[agent.pos] = 0
+                waste_agent_map[agent.pos + direction] = id
+            
         num_apples = np.count_nonzero(apple_map)
         num_dirt = np.count_nonzero(waste_map)
         
         observations = {
-            id: (num_apples, num_dirt, num_pickers, num_cleaners, apple_map, waste_map) for id in self.get_agent_ids()
+            'coordinator': (num_apples, num_dirt, num_pickers, num_cleaners),
         }
+        for id in self.get_agent_ids():
+            agent = self._agents[id]
+            closest_objective = self.closest_objective(agent.region, agent.pos, apple_map_override=apple_map, waste_map_override=waste_map)
+            closest_agents = self.closest_agents(agent.region, agent.pos, apple_map_override=apple_agent_map, waste_map_override=waste_agent_map)
+            observations[id] = (closest_objective[0], closest_objective[1], closest_agents[0], closest_agents[1])
         return observations
