@@ -363,7 +363,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         d = -1 if len(d) == 0 else d[0] + 1
         return u, d
     
-    def simulate_actions(self, actions: dict[str, tuple[CleanupRegion, int]]):
+    def simulate_step(self, actions: dict[str, tuple[CleanupRegion, int]]):
         """
         Simulate the future state of the environment after all agents perform their actions.
         Returns a tuple (observations, rewards) where observations is a dictionary of agent observations and rewards is a dictionary of agent rewards in the hypothetical future state.
