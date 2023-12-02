@@ -16,6 +16,8 @@ wasteSpawnProbability = 0.5
 appleRespawnProbability = 0.05
 
 
+
+
 class CleanupEnv(MultiAgentEnv):
     """
     Cleanup environment. In this game, the agents must clean up the dirt from the river before apples can spawn.
