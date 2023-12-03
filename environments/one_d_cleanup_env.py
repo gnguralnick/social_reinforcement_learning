@@ -362,6 +362,41 @@ class OneDCleanupEnv(MultiAgentEnv):
         d = -1 if len(d) == 0 else d[0] + 1
         return u, d
     
+    def get_greedy_assignments(self, num_pickers: int, num_cleaners: int):
+        """
+        Returns a dictionary of greedy role assignments for each agent, where there are num_pickers pickers and num_cleaners cleaners.
+        Assigns agents to the role that minimises their distance to the closest objective in that role.
+        """
+        assignments = {}
+        agents = list(self._agents.values())
+        apple_ordering = sorted(agents, key=lambda agent: min(self.closest_objective(agent.region, agent.pos)))
+        waste_ordering = sorted(agents, key=lambda agent: min(self.closest_objective(agent.region, agent.pos)))
+        for i in range(num_pickers):
+            assignments[apple_ordering[i].agent_id] = CleanupRegion.APPLE
+            waste_ordering.remove(apple_ordering[i]) # remove the agent from the waste ordering so that it can't be assigned to both roles
+        for i in range(num_cleaners):
+            assignments[waste_ordering[i].agent_id] = CleanupRegion.WASTE
+        return assignments
+    
+    def get_greedy_actions(self, roles: dict[str, CleanupRegion]):
+        """
+        Returns a dictionary of greedy actions for each agent.
+        """
+        actions = {}
+        for id in self.get_agent_ids():
+            agent = self._agents[id]
+            role = roles[id]
+            closest_objective = self.closest_objective(agent.region, agent.pos)
+            closest_agents = self.closest_agents(agent.region, agent.pos)
+            if closest_objective[0] >= closest_objective[1]:
+                direction = -1
+            else:
+                direction = 1
+            
+            actions[id] = (role, direction)
+
+        return actions
+    
     def simulate_step(self, actions: dict[str, tuple[CleanupRegion, int]]):
         """
         Simulate the future state of the environment after all agents perform their actions.
