@@ -27,7 +27,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         Initialise the environment.
         """
         self._agent_ids = set(agent_ids)
-        self._agents = {id: GreedyCleanUpAgent(id, (0, 0), CleanupRegion.APPLE) for id in self._agent_ids}
+        self._agents = {id: GreedyCleanUpAgent(id, (0, 0), CleanupRegion.WASTE) for id in self._agent_ids}
         self.num_agents = num_agents
         self.timestamp = 0
 
@@ -80,27 +80,17 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.step_apple_consumed = 0
         self.total_reward_by_agent = {id: 0 for id in self.get_agent_ids()}
 
-        # Distribute agents uniformly across the two areas
+        # Distribute agents uniformly in the dirt area
         num_agents = len(self.get_agent_ids())
-        apple_agents = num_agents // 2
-        dirt_agents = num_agents - apple_agents
-        apple_agent_ids = random.sample(self.get_agent_ids(), apple_agents)
-        dirt_agent_ids = list(set(self.get_agent_ids()) - set(apple_agent_ids))
-
-        for i, id in enumerate(apple_agent_ids):
-            loc = (i // apple_agents) * self.potential_apple_area
-            self._agents[id].region = CleanupRegion.APPLE
-            self._agents[id].pos = np.array(loc)
-            self.apple_agent_map[loc] = id
+        agent_ids = list(self.get_agent_ids())
         
-        for i, id in enumerate(dirt_agent_ids):
-            loc = (i // dirt_agents) * self.potential_waste_area
-            self._agents[id].region = CleanupRegion.WASTE
+        for i, id in enumerate(agent_ids):
+            loc = int((i / num_agents) * self.potential_waste_area)
             self._agents[id].pos = np.array(loc)
             self.waste_agent_map[loc] = id
 
         for i in range(self.num_dirt):
-            remaining_locs = np.where(self.waste_map == 0)[0]
+            remaining_locs = np.where(np.logical_and(self.waste_map == 0, self.waste_agent_map == 0))[0]
             if len(remaining_locs) == 0:
                 self.num_dirt = i
                 break
@@ -108,7 +98,7 @@ class OneDCleanupEnv(MultiAgentEnv):
             self.waste_map[loc] = 1
 
         observations: dict[str, tuple] = {
-            'coordinator': (self.num_apples, self.num_dirt, 0, 0),
+            'coordinator': (self.num_apples, self.num_dirt, 0, num_agents),
         }
         for id in self.get_agent_ids():
             agent = self._agents[id]
@@ -122,7 +112,7 @@ class OneDCleanupEnv(MultiAgentEnv):
             "apple": self.num_apples,
             "dirt": self.num_dirt,
             "picker": 0,
-            "cleaner": 0,
+            "cleaner": num_agents,
             "apple_map": self.apple_map,
             "waste_map": self.waste_map,
             "apple_agent_map": self.apple_agent_map,
@@ -138,7 +128,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         observations = {}
         rewards = {}
         dones = {}
-        dones["_all__"] = False
+        dones["__all__"] = False
 
         self.timestamp += 1
         self.step_reward = 0
@@ -170,7 +160,7 @@ class OneDCleanupEnv(MultiAgentEnv):
             "waste_agent_map": self.waste_agent_map,
         }
 
-        return observations, rewards, dones, info
+        return observations, rewards, dones, {"__all__": False}, info
     
     def perform_step(self, action_dict: dict[str, tuple[CleanupRegion, int]], apple_map=None, waste_map=None, apple_agent_map=None, waste_agent_map=None) -> tuple:
         if apple_map is None:
@@ -310,7 +300,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         if num_dirt + num_cleaners < self.potential_waste_area:
             rand_num = np.random.rand(1)[0]
             if rand_num < current_waste_spawn_prob:
-                remaining_locs = np.where(waste_map == 0 and waste_agent_map == 0)[0]
+                remaining_locs = np.where(np.logical_and(waste_map == 0, waste_agent_map == 0))[0]
                 if len(remaining_locs) > 0:
                     loc = random.choice(remaining_locs)
                     waste_map[loc] = 1
