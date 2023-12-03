@@ -47,8 +47,6 @@ class OneDCleanupEnv(MultiAgentEnv):
 
         self.starting_apple_spawn_prob = appleRespawnProbability
         self.starting_waste_spawn_prob = wasteSpawnProbability
-        self.current_apple_spawn_prob = appleRespawnProbability
-        self.current_waste_spawn_prob = wasteSpawnProbability
 
         self.thresholdDepletion = thresholdDepletion
         self.thresholdRestoration = thresholdRestoration
@@ -76,8 +74,6 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.num_dirt = 78
         self.num_apples = 0
 
-        self.current_apple_spawn_prob = self.starting_apple_spawn_prob
-        self.current_waste_spawn_prob = self.starting_waste_spawn_prob
         self.compute_probabilities(self.num_dirt)
 
         self.total_apple_consumed = 0
