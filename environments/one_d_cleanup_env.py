@@ -374,8 +374,6 @@ class OneDCleanupEnv(MultiAgentEnv):
             role = roles[id]
             closest_objective = self.closest_objective(agent.region, agent.pos)
             closest_agents = self.closest_agents(agent.region, agent.pos)
-            if id == "0":
-                print(f"closest obj {closest_objective}")
             if closest_objective[0] >= closest_objective[1]:
                 direction = 1
             else:
@@ -410,3 +408,42 @@ class OneDCleanupEnv(MultiAgentEnv):
             observations[id] = (closest_objective[0], closest_objective[1], closest_agents[0], closest_agents[1])
 
         return observations, rewards
+
+def render(self) -> None:
+        """
+        Render the environment.
+        """
+        apple_map = self.apple_map.copy()
+        apple_map = np.expand_dims(apple_map, axis=0)
+        apple_map = np.repeat(apple_map, 10, axis=0)
+        plt.figure()
+        plt.title("Apple Map")
+        plt.imshow(apple_map)
+        plt.show()
+
+        waste_map = self.waste_map.copy()
+        waste_map = np.expand_dims(waste_map, axis=0)
+        waste_map = np.repeat(waste_map, 10, axis=0)
+        plt.figure()
+        plt.title("Waste Map")
+        plt.imshow(waste_map)
+        plt.show()
+        apple_agent_map = self.apple_agent_map.copy()
+        for id in self._agent_ids:
+            apple_agent_map[np.where(apple_agent_map == id)] = 1
+        apple_agent_map = np.expand_dims(apple_agent_map, axis=0)
+        apple_agent_map = np.repeat(apple_agent_map, 10, axis=0)
+        plt.figure()
+        plt.title("Apple Agent Map")
+        plt.imshow(apple_agent_map)
+        plt.show()
+
+        waste_agent_map = self.waste_agent_map.copy()
+        for id in self._agent_ids:
+            waste_agent_map[np.where(waste_agent_map == id)] = 1
+        waste_agent_map = np.expand_dims(waste_agent_map, axis=0)
+        waste_agent_map = np.repeat(waste_agent_map, 10, axis=0)
+        plt.figure()
+        plt.title("Waste Agent Map")
+        plt.imshow(waste_agent_map)
+        plt.show()
