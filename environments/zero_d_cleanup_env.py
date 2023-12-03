@@ -111,8 +111,6 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         total_reward = step_reward
         self.step_apple_consumed = total_reward
         self.total_apple_consumed += total_reward
-        # for id in self.get_agent_ids():
-        #     self.total_reward_by_agent[id] += step_reward[id]
         self.step_dirt_calculation(dirt_agents)
         self.compute_probabilities()
         new_apple, new_dirt = self.spawn_apples_and_waste()
@@ -144,33 +142,11 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         return distribution
 
     def step_reward_calculation(self, apple_agent_ids):
-        # reward = {
-        #     id: 0 for id in self.get_agent_ids()
-        # }
-        # apple_agents = list(np.random.permutation(list(apple_agent_ids)))
-        # num_apple_agents = len(apple_agents)
-        # d_apple = self.uniform_distribute(self.num_apples, self.area)
-        # d_picker = self.uniform_distribute(num_apple_agents, self.area)
-        # for i in range(len(d_apple)):
-        #     if d_apple[i] == 1 and d_picker[i] == 1:
-        #         reward[apple_agents.pop()] = 1
-        #         self.num_apples -= 1
         reward = (self.num_apples * len(apple_agent_ids)) / self.area
         self.num_apples -= reward
         return reward
 
     def step_dirt_calculation(self, dirt_agent_ids):
-        # reward = {
-        #     id: 0 for id in self.get_agent_ids()
-        # }
-        # dirt_agents = list(dirt_agent_ids)
-        # num_dirt_agents = len(dirt_agents)
-        # d_dirt = self.uniform_distribute(self.num_dirt, self.area)
-        # d_cleaner = self.uniform_distribute(num_dirt_agents, self.area)
-        # for i in range(len(d_dirt)):
-        #     if d_dirt[i] == 1 and d_cleaner[i] == 1:
-        #         self.num_dirt -= 1
-        #         reward[dirt_agents.pop()] = 1
         reward = (self.num_dirt * len(dirt_agent_ids)) / self.area
         self.num_dirt -= reward
         return reward
@@ -195,11 +171,6 @@ class ZeroDCleanupEnv(MultiAgentEnv):
     def spawn_apples_and_waste(self):
         # spawn apples, multiple can spawn per step
         new_apple, new_dirt = 0, 0
-        # for _ in range(self.area - round(self.num_apples)): # only potentially spawn apples in empty spots
-        #     rand_num = np.random.rand(1)[0]
-        #     if rand_num < self.current_apple_spawn_prob and self.num_apples < self.area:
-        #         self.num_apples += 1
-        #         new_apple += 1
         new_apple = (self.area - int(self.num_apples)) * self.current_apple_spawn_prob
         self.num_apples += new_apple
         new_apple = min(self.num_apples, self.area)
@@ -207,11 +178,6 @@ class ZeroDCleanupEnv(MultiAgentEnv):
         
 
         # spawn one waste point, only one can spawn per step
-        # if self.num_dirt < self.potential_waste_area:
-        #     rand_num = np.random.rand(1)[0]
-        #     if rand_num < self.current_waste_spawn_prob:
-        #         self.num_dirt += 1
-        #         new_dirt += 1
         new_dirt = self.current_waste_spawn_prob
         self.num_dirt += new_dirt
         new_dirt = min(self.num_dirt, self.potential_waste_area)
@@ -238,40 +204,6 @@ class ZeroDCleanupEnv(MultiAgentEnv):
             exp_new_apple = apple_left + (self.area-apple_left)*(1-(cur_dirt_density-self.thresholdRestoration)/(self.thresholdDepletion-self.thresholdRestoration)) * self.starting_apple_spawn_prob
         s_next = [exp_new_apple, exp_new_dirt, new_p, new_c]
         return s_next
-        # d = []
-        # tp = []
-        # for p in range(new_p+1):
-        #     for c in range(new_c+1):
-        #         if (self.num_apples-p) < 0 or (self.num_agents-c) < 0:
-        #             continue
-        #         s_new = np.array([self.num_apples-p, self.num_dirt-c, new_p, new_c])
-        #         s_new_input = np.array([float(self.num_apples-p), float(self.num_dirt-c)])
-        #         transition_prob = self.transition_P(s_original, s_new)
-        #         dirt_density = (self.num_dirt-c) / self.area
-        #         if dirt_density >= self.thresholdDepletion:  # nothing will grow
-        #             u_input0 = torch.tensor(s_new_input).float().unsqueeze(0)
-        #             d.append(u_input0)
-        #             tp.append(transition_prob)
-        #         else:
-        #             apple_prob = (1 - (dirt_density - self.thresholdRestoration)/(self.thresholdDepletion - self.thresholdRestoration)) * self.starting_apple_spawn_prob
-        #             dirt_prob = 0.5
-        #             apple_potential = self.area - (self.num_apples-p)
-        #             # for apple_g in range(10):  # estimate, for performance, large apple_g will have extremely small prob.
-        #             #     a_p = comb(apple_potential, apple_g) * (apple_prob**apple_g) * ((1-apple_prob)**(apple_potential-apple_g))
-        #             #     s_new_input[0] += apple_g
-        #             #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-        #             #     d.append(u_input0)
-        #             #     tp.append(transition_prob * a_p * dirt_prob)
-        #             #     s_new_input[1] += 1
-        #             #     u_input0 = torch.tensor(s_new_input).float().unsqueeze(0).to(device)
-        #             #     d.append(u_input0)
-        #             #     tp.append(transition_prob * a_p * dirt_prob)
-        #             s_new_input[0] += apple_prob * apple_potential
-        #             s_new_input[1] += dirt_prob
-        #             u_input0 = torch.tensor(s_new_input).float().unsqueeze(0)
-        #             d.append(u_input0)
-        #             tp.append(transition_prob)
-        # return d, tp
     
     def get_immediate_reward(self, n_pickers):
         return (self.num_apples * n_pickers) / self.area
