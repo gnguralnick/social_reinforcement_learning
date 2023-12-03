@@ -201,10 +201,8 @@ class OneDCleanupEnv(MultiAgentEnv):
             num_dirt -= dirt_consumed
             reward = apples_consumed
             rewards[id] = reward
-            self.step_reward += reward
-            self.total_apple_consumed += reward
 
-        current_apple_spawn_prob, current_waste_spawn_prob = self.compute_probabilities(self.num_dirt)
+        current_apple_spawn_prob, current_waste_spawn_prob = self.compute_probabilities(num_dirt)
         num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map, apple_agent_map, waste_agent_map)
 
         num_apples += num_apples_spawned
@@ -320,9 +318,9 @@ class OneDCleanupEnv(MultiAgentEnv):
             map = waste_map
 
         u = np.where(map[:pos] == 1)[0]
-        u = -1 if len(u) == 0 else pos - u[-1]
-        d = np.where(map[pos:] == 1)[0]
-        d = -1 if len(d) == 0 else d[0] + 1
+        u = np.inf if len(u) == 0 else pos - u[-1]
+        d = np.where(map[pos + 1:] == 1)[0]
+        d = np.inf if len(d) == 0 else d[0] + 1
         return u, d
     
     def closest_agents(self, region, pos, apple_map=None, waste_map=None):
@@ -340,9 +338,9 @@ class OneDCleanupEnv(MultiAgentEnv):
             map = waste_map
 
         u = np.where(map[:pos] != 0)[0]
-        u = -1 if len(u) == 0 else pos - u[-1]
-        d = np.where(map[pos:] != 0)[0]
-        d = -1 if len(d) == 0 else d[0] + 1
+        u = np.inf if len(u) == 0 else pos - u[-1]
+        d = np.where(map[pos + 1:] != 0)[0]
+        d = np.inf if len(d) == 0 else d[0] + 1
         return u, d
     
     def get_greedy_assignments(self, num_pickers: int, num_cleaners: int):
@@ -352,8 +350,8 @@ class OneDCleanupEnv(MultiAgentEnv):
         """
         assignments = {}
         agents = list(self._agents.values())
-        apple_ordering = sorted(agents, key=lambda agent: min(self.closest_objective(agent.region, agent.pos)))
-        waste_ordering = sorted(agents, key=lambda agent: min(self.closest_objective(agent.region, agent.pos)))
+        apple_ordering = sorted(agents, key=lambda agent: min(self.closest_objective(CleanupRegion.APPLE, agent.pos)))
+        waste_ordering = sorted(agents, key=lambda agent: min(self.closest_objective(CleanupRegion.WASTE, agent.pos)))
         for i in range(num_pickers):
             assignments[apple_ordering[i].agent_id] = CleanupRegion.APPLE
             waste_ordering.remove(apple_ordering[i]) # remove the agent from the waste ordering so that it can't be assigned to both roles
