@@ -1,12 +1,13 @@
 import math
 import random
+from environments.one_d_cleanup_env import OneDCleanupEnv
 from environments.zero_d_cleanup_env import ZeroDCleanupEnv
 from models import UNetwork
 import torch
 from agents.util import ReplayBuffer
 import numpy as np
 
-class UAgent:
+class ZeroDUCoordinator:
     def __init__(self, device, num_action_outputs, action_size, u_layers: list[tuple[int, int]], buffer_size=10000, batch_size=64, lr=0.001, gamma=0.9999, epsilon=1.0, epsilon_decay=0.999, epsilon_min=0.05):
         self.num_action_outputs = num_action_outputs
         self.action_size = action_size
@@ -29,7 +30,7 @@ class UAgent:
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         return self.u_network(state).cpu().detach().numpy()
     
-    def act(self, env: ZeroDCleanupEnv):
+    def act(self, env: ZeroDCleanupEnv | OneDCleanupEnv):
         if random.random() < max(self.epsilon, self.epsilon_min):
             actions = np.random.choice(self.action_size, (1, self.num_action_outputs))
             return actions
@@ -39,15 +40,13 @@ class UAgent:
         for i in range(self.num_action_outputs + 1):
             new_p = self.num_action_outputs - i
             new_c = i
-            exp_imm_reward = env.get_immediate_reward(new_p)
+            agents =
+            observations, reward = env.simulate_step()
+            # exp_imm_reward = env.get_immediate_reward(new_p)
+            
+            # future_state = env.simulate_future_state(new_p, new_c)
+            
             all_imm_rewards.append(exp_imm_reward)
-            #total_future_reward = 0
-            # poss_future_states, transition_probabilities = env.simulate_future_state(new_p, new_c)
-            # poss_future_states = torch.stack(poss_future_states).float().to(self.device)
-            # transition_probabilities = torch.tensor(transition_probabilities).float().to(self.device)
-            #predicted_future_rewards = self.u_network(poss_future_states).flatten()
-            #total_future_reward = torch.dot(predicted_future_rewards, transition_probabilities)
-            future_state = env.simulate_future_state(new_p, new_c)
             future_state = torch.tensor(future_state).float().unsqueeze(0).to(self.device)
             all_next_states.append(future_state)
         all_next_states = torch.stack(all_next_states).float().to(self.device)
