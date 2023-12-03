@@ -1,13 +1,14 @@
 from ray.rllib.env import MultiAgentEnv
 
 import numpy as np
-import torch
 
 from agents import GreedyCleanUpAgent
 
 import random
 
 from enum import Enum
+
+import matplotlib.pyplot as plt
 
 class CleanupRegion(Enum):
     APPLE = 1
@@ -134,6 +135,9 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.step_reward = 0
 
         rewards, self.num_apples, self.num_dirt, self.num_pickers, self.num_cleaners = self.perform_step(action_dict)
+        reward = sum(rewards.values())
+        self.step_reward += reward
+        self.total_apple_consumed += reward
 
         observations = {
             'coordinator': (self.num_apples, self.num_dirt, self.num_pickers, self.num_cleaners),
@@ -160,7 +164,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         if self.timestamp == 1000:
             dones["__all__"] = True
 
-        return observations, rewards, dones, info
+        return observations, rewards, dones, {"__all__": False}, info
 
     def perform_step(self, action_dict: dict[str, tuple[CleanupRegion, int]], apple_map=None, waste_map=None, apple_agent_map=None, waste_agent_map=None) -> tuple:
         if apple_map is None:
@@ -204,11 +208,10 @@ class OneDCleanupEnv(MultiAgentEnv):
                 num_dirt -= dirt_consumed
                 reward = 0
             rewards[id] = reward
-            self.step_reward += reward
-            self.total_apple_consumed += reward
+
 
         current_apple_spawn_prob, current_waste_spawn_prob = self.compute_probabilities(num_dirt)
-        num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, self.apple_map, self.waste_map, self.apple_agent_map, self.waste_agent_map)
+        num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map, apple_agent_map, waste_agent_map)
 
         num_apples += num_apples_spawned
         num_dirt += num_waste_spawned
@@ -409,7 +412,7 @@ class OneDCleanupEnv(MultiAgentEnv):
 
         return observations, rewards
 
-def render(self) -> None:
+    def render(self) -> None:
         """
         Render the environment.
         """
