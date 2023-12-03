@@ -9,6 +9,8 @@ import random
 
 from enum import Enum
 
+import matplotlib.pyplot as plt
+
 class CleanupRegion(Enum):
     APPLE = 1
     WASTE = -1
@@ -133,10 +135,10 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.timestamp += 1
         self.step_reward = 0
 
-        num_pickers = 0
-        num_cleaners = 0
-
         rewards, self.num_apples, self.num_dirt, num_pickers, num_cleaners = self.perform_step(action_dict)
+
+        self.step_apple_consumed = sum(rewards.values())
+        self.total_apple_consumed += self.step_apple_consumed
 
         observations = {
             'coordinator': (self.num_apples, self.num_dirt, num_pickers, num_cleaners),
@@ -184,31 +186,26 @@ class OneDCleanupEnv(MultiAgentEnv):
 
             if region != agent.region:
                 apples_consumed, dirt_consumed = self.switch_region(id, region, apple_map, waste_map, apple_agent_map, waste_agent_map)
-                num_apples -= apples_consumed
-                num_dirt -= dirt_consumed
-                reward = apples_consumed
-                if region == CleanupRegion.APPLE:
+                if agent.region == CleanupRegion.APPLE:
                     num_pickers += 1
                 else:
                     num_cleaners += 1
             elif region == CleanupRegion.APPLE:
                 num_pickers += 1
                 apples_consumed, dirt_consumed = self.move_agent(id, direction, apple_map, waste_map, apple_agent_map, waste_agent_map)
-                reward = apples_consumed
-                num_apples -= apples_consumed
-                num_dirt -= dirt_consumed
             else:
                 num_cleaners += 1
                 apples_consumed, dirt_consumed = self.move_agent(id, direction, apple_map, waste_map, apple_agent_map, waste_agent_map)
-                num_apples -= apples_consumed
-                num_dirt -= dirt_consumed
-                reward = 0
+
+            num_apples -= apples_consumed
+            num_dirt -= dirt_consumed
+            reward = apples_consumed
             rewards[id] = reward
             self.step_reward += reward
             self.total_apple_consumed += reward
 
         current_apple_spawn_prob, current_waste_spawn_prob = self.compute_probabilities(self.num_dirt)
-        num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, self.apple_map, self.waste_map, self.apple_agent_map, self.waste_agent_map)
+        num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map, apple_agent_map, waste_agent_map)
 
         num_apples += num_apples_spawned
         num_dirt += num_waste_spawned
@@ -227,19 +224,19 @@ class OneDCleanupEnv(MultiAgentEnv):
                 return 0, 0
             apple_agent_map[agent.pos] = 0
             waste_agent_map[agent.pos] = id
+            agent.region = CleanupRegion.APPLE
             if apple_map[agent.pos] != 0:
                 apple_map[agent.pos] = 0
                 return 1, 0 
-            agent.region = CleanupRegion.APPLE
         else:
             if waste_agent_map[agent.pos] != 0:
                 return 0, 0
             apple_agent_map[agent.pos] = id
             waste_agent_map[agent.pos] = 0
+            agent.region = CleanupRegion.WASTE
             if waste_map[agent.pos] != 0:
                 waste_map[agent.pos] = 0
                 return 0, 1
-            agent.region = CleanupRegion.WASTE
         return 0, 0
     
     def move_agent(self, id, direction, apple_map, waste_map, apple_agent_map, waste_agent_map):
@@ -408,3 +405,44 @@ class OneDCleanupEnv(MultiAgentEnv):
             observations[id] = (closest_objective[0], closest_objective[1], closest_agents[0], closest_agents[1])
         
         return observations, rewards
+    
+
+    def render(self) -> None:
+        """
+        Render the environment.
+        """
+        apple_map = self.apple_map.copy()
+        apple_map = np.expand_dims(apple_map, axis=0)
+        apple_map = np.repeat(apple_map, 10, axis=0)
+        plt.figure()
+        plt.title("Apple Map")
+        plt.imshow(apple_map)
+        plt.show()
+        
+        waste_map = self.waste_map.copy()
+        waste_map = np.expand_dims(waste_map, axis=0)
+        waste_map = np.repeat(waste_map, 10, axis=0)
+        plt.figure()
+        plt.title("Waste Map")
+        plt.imshow(waste_map)
+        plt.show()
+
+        apple_agent_map = self.apple_agent_map.copy()
+        for id in self._agent_ids:
+            apple_agent_map[np.where(apple_agent_map == id)] = 1
+        apple_agent_map = np.expand_dims(apple_agent_map, axis=0)
+        apple_agent_map = np.repeat(apple_agent_map, 10, axis=0)
+        plt.figure()
+        plt.title("Apple Agent Map")
+        plt.imshow(apple_agent_map)
+        plt.show()
+
+        waste_agent_map = self.waste_agent_map.copy()
+        for id in self._agent_ids:
+            waste_agent_map[np.where(waste_agent_map == id)] = 1
+        waste_agent_map = np.expand_dims(waste_agent_map, axis=0)
+        waste_agent_map = np.repeat(waste_agent_map, 10, axis=0)
+        plt.figure()
+        plt.title("Waste Agent Map")
+        plt.imshow(waste_agent_map)
+        plt.show()
