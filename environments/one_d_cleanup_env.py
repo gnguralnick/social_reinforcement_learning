@@ -309,16 +309,16 @@ class OneDCleanupEnv(MultiAgentEnv):
         # spawn apples, multiple can spawn per step
         remaining_apple_locs = np.where(np.logical_and(apple_map == 0, apple_agent_map == 0))[0]
         if len(remaining_apple_locs) > 0:
-            #apple_locs = random.sample(list(remaining_apple_locs), int(num_apples_spawned))
-            apple_locs = remaining_apple_locs[:int(num_apples_spawned)]
+            apple_locs = random.sample(list(remaining_apple_locs), int(num_apples_spawned))
+            #apple_locs = remaining_apple_locs[:int(num_apples_spawned)]
             apple_map[apple_locs] = 1
 
         # spawn one waste point, only one can spawn per step
         if num_dirt + num_cleaners < self.potential_waste_area:
             remaining_waste_locs = np.where(np.logical_and(waste_map == 0, waste_agent_map == 0))[0]
             if len(remaining_waste_locs) > 0:
-                #loc = random.choice(remaining_waste_locs)
-                loc = remaining_waste_locs[0]
+                loc = random.choice(remaining_waste_locs)
+                #loc = remaining_waste_locs[0]
                 waste_map[loc] = 1
 
         #print(num_apples, num_apples_spawned, np.where(apple_map == 1)[0])
