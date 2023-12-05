@@ -11,6 +11,8 @@ import random
 
 from enum import Enum
 
+import matplotlib.pyplot as plt
+
 class CleanupRegion(Enum):
     APPLE = 1
     WASTE = -1
@@ -24,7 +26,7 @@ class OneDCleanupEnv(MultiAgentEnv):
     Agents can move up and down within their area, and can cross over to the other area.
     """
 
-    def __init__(self, agent_ids, num_agents=10, area=150, thresholdDepletion: float=0.4, thresholdRestoration: float=0, wasteSpawnProbability: float=0.5, appleRespawnProbability: float=0.05, dirt_multiplier=10):
+    def __init__(self, agent_ids, num_agents=10, area=150, thresholdDepletion: float=0.4, thresholdRestoration: float=0, wasteSpawnProbability: float=0.5, appleRespawnProbability: float=0.05, dirt_multiplier=10, use_randomness=True):
         """
         Initialise the environment.
         """
@@ -61,6 +63,8 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.step_apple_consumed = 0
         self.epoch = 0
 
+        self.use_randomness = use_randomness
+
     def reset(self, seed=None, options: dict = {}) -> tuple:
         """
         Reset the environment. Distribute agents uniformly across the two areas.
@@ -86,7 +90,10 @@ class OneDCleanupEnv(MultiAgentEnv):
         # Distribute agents uniformly across the dirt area
         dirt_agent_ids = sorted(list(set(self.get_agent_ids())))
 
-        dirt_init_locations = np.random.choice(self.potential_waste_area, size=self.num_dirt, replace=False)
+        if self.use_randomness:
+            dirt_init_locations = np.random.choice(self.potential_waste_area, size=self.num_dirt, replace=False)
+        else:
+            dirt_init_locations = np.linspace(0, self.potential_waste_area - 1, self.num_dirt, dtype=int)
         for i in dirt_init_locations:
             self.waste_map[i] = 1
 
@@ -214,7 +221,10 @@ class OneDCleanupEnv(MultiAgentEnv):
             rewards[id] = reward
 
         current_apple_spawn_prob, current_waste_spawn_prob = self.compute_probabilities(num_dirt)
-        num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map, apple_agent_map, waste_agent_map)
+        if self.use_randomness:
+            num_apples_spawned, num_waste_spawned = self.spawn_apples_and_waste(num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map, apple_agent_map, waste_agent_map)
+        else:
+            num_apples_spawned, num_waste_spawned = self.deterministic_spawn_apples_and_waste(num_apples, num_dirt, num_pickers, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map, apple_agent_map, waste_agent_map)
 
         num_apples += num_apples_spawned
         num_dirt += num_waste_spawned
@@ -291,6 +301,30 @@ class OneDCleanupEnv(MultiAgentEnv):
                              * self.starting_apple_spawn_prob
                 current_apple_spawn_prob = spawn_prob
         return current_apple_spawn_prob, current_waste_spawn_prob
+    
+    def deterministic_spawn_apples_and_waste(self, num_apples, num_dirt, num_pickers, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map: np.ndarray, apple_agent_map, waste_agent_map):
+        num_apples_spawned = current_apple_spawn_prob * (self.potential_apple_area - num_apples - num_pickers)
+        num_waste_spawned = 1 if current_waste_spawn_prob > 0 else 0
+
+        # spawn apples, multiple can spawn per step
+        remaining_apple_locs = np.where(np.logical_and(apple_map == 0, apple_agent_map == 0))[0]
+        if len(remaining_apple_locs) > 0:
+            #apple_locs = random.sample(list(remaining_apple_locs), int(num_apples_spawned))
+            apple_locs = remaining_apple_locs[:int(num_apples_spawned)]
+            apple_map[apple_locs] = 1
+
+        # spawn one waste point, only one can spawn per step
+        if num_dirt + num_cleaners < self.potential_waste_area:
+            remaining_waste_locs = np.where(np.logical_and(waste_map == 0, waste_agent_map == 0))[0]
+            if len(remaining_waste_locs) > 0:
+                #loc = random.choice(remaining_waste_locs)
+                loc = remaining_waste_locs[0]
+                waste_map[loc] = 1
+
+        #print(num_apples, num_apples_spawned, np.where(apple_map == 1)[0])
+        #print(num_dirt, num_waste_spawned, np.where(waste_map == 1)[0])
+
+        return int(num_apples_spawned), num_waste_spawned
 
     def spawn_apples_and_waste(self, num_dirt, num_cleaners, current_apple_spawn_prob, current_waste_spawn_prob, apple_map, waste_map: np.ndarray, apple_agent_map, waste_agent_map):
         num_apples_spawned = 0
