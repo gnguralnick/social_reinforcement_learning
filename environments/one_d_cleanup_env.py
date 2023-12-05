@@ -142,10 +142,10 @@ class OneDCleanupEnv(MultiAgentEnv):
         self.timestamp += 1
         self.step_reward = 0
 
-        rewards, self.num_apples, self.num_dirt, self.num_pickers, self.num_cleaners = self.perform_step(action_dict)
-        reward = sum(rewards.values())
-        self.step_reward += reward
-        self.total_apple_consumed += reward
+        rewards, self.num_apples, self.num_dirt, self.num_pickers, self.num_cleaners, self.step_apple_consumed = self.perform_step(action_dict)
+        
+        self.step_reward = self.step_apple_consumed
+        self.total_apple_consumed += self.step_reward
 
         observations = {
             'coordinator': (self.num_apples, self.num_dirt, self.num_pickers, self.num_cleaners),
@@ -192,6 +192,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         num_apples = self.num_apples
         num_pickers = 0
         num_cleaners = 0
+        num_apples_consumed = 0
         for id, action in action_dict.items():
             region, direction = action
             agent = agents[id]
@@ -200,16 +201,20 @@ class OneDCleanupEnv(MultiAgentEnv):
                 apples_consumed, dirt_consumed = self.switch_region(id, region, agents, apple_map, waste_map, apple_agent_map, waste_agent_map)
 
                 num_apples -= apples_consumed
+                num_apples_consumed += apples_consumed
                 num_dirt -= dirt_consumed
-                reward = apples_consumed
+                
                 if agent.region == CleanupRegion.APPLE:
                     num_pickers += 1
+                    reward = apples_consumed
                 else:
                     num_cleaners += 1
+                    reward = dirt_consumed
             elif region == CleanupRegion.APPLE:
                 num_pickers += 1
                 apples_consumed, dirt_consumed = self.move_agent(id, direction, agents, apple_map, waste_map, apple_agent_map, waste_agent_map)
                 reward = apples_consumed
+                num_apples_consumed += apples_consumed
                 num_apples -= apples_consumed
                 num_dirt -= dirt_consumed
             else:
@@ -217,8 +222,10 @@ class OneDCleanupEnv(MultiAgentEnv):
                 apples_consumed, dirt_consumed = self.move_agent(id, direction, agents, apple_map, waste_map, apple_agent_map, waste_agent_map)
                 num_apples -= apples_consumed
                 num_dirt -= dirt_consumed
-                reward = 0
+                reward = dirt_consumed
             rewards[id] = reward
+        
+        rewards["coordinator"] = num_apples_consumed
 
         current_apple_spawn_prob, current_waste_spawn_prob = self.compute_probabilities(num_dirt)
         if self.use_randomness:
@@ -229,7 +236,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         num_apples += num_apples_spawned
         num_dirt += num_waste_spawned
 
-        return rewards, num_apples, num_dirt, num_pickers, num_cleaners
+        return rewards, num_apples, num_dirt, num_pickers, num_cleaners, num_apples_consumed
 
     def switch_region(self, id, region, agents, apple_map, waste_map, apple_agent_map, waste_agent_map):
         """
@@ -437,7 +444,7 @@ class OneDCleanupEnv(MultiAgentEnv):
         num_pickers = 0
         num_cleaners = 0
 
-        rewards, num_apples, num_dirt, num_pickers, num_cleaners = self.perform_step(actions, agents, apple_map, waste_map, apple_agent_map, waste_agent_map)
+        rewards, num_apples, num_dirt, num_pickers, num_cleaners, num_apples_consumed = self.perform_step(actions, agents, apple_map, waste_map, apple_agent_map, waste_agent_map)
         observations = {
             'coordinator': (num_apples, num_dirt, num_pickers, num_cleaners),
         }

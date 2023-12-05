@@ -40,7 +40,7 @@ class OneDUCoordinator:
             actions = self.env.get_greedy_actions(assignments)
             observations, rewards = self.env.simulate_step(actions)
             future_state = observations["coordinator"]
-            exp_imm_reward = sum(rewards.values())
+            exp_imm_reward = rewards["coordinator"]
             all_imm_rewards.append(exp_imm_reward)
             future_state = torch.tensor(future_state).float().unsqueeze(0).to(self.device)
             all_next_states.append(future_state)
