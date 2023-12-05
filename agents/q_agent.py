@@ -16,6 +16,7 @@ class QAgent:
 
         self.q_network = QNetwork(q_layers, num_action_outputs, action_size, verbose=verbose).to(self.device)
         self.q_optimizer = torch.optim.Adam(self.q_network.parameters(), lr=lr)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.q_optimizer, step_size=100, gamma=0.6)
 
         self.memory = ReplayBuffer(buffer_size)
 
