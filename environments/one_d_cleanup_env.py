@@ -126,6 +126,8 @@ class OneDCleanupEnv(MultiAgentEnv):
             "waste_map": self.waste_map,
             "apple_agent_map": self.apple_agent_map,
             "waste_agent_map": self.waste_agent_map,
+            'picker_spread': np.where(self.apple_agent_map != 0)[0][-1] - np.where(self.apple_agent_map != 0)[0][0] if len(np.where(self.apple_agent_map != 0)[0]) > 0 else 0,
+            'cleaner_spread': np.where(self.waste_agent_map != 0)[0][-1] - np.where(self.waste_agent_map != 0)[0][0] if len(np.where(self.waste_agent_map != 0)[0]) > 0 else 0,
         }
 
         return observations, info
@@ -167,6 +169,8 @@ class OneDCleanupEnv(MultiAgentEnv):
             "waste_map": self.waste_map,
             "apple_agent_map": self.apple_agent_map,
             "waste_agent_map": self.waste_agent_map,
+            'picker_spread': np.where(self.apple_agent_map != 0)[0][-1] - np.where(self.apple_agent_map != 0)[0][0] if len(np.where(self.apple_agent_map != 0)[0]) > 0 else 0,
+            'cleaner_spread': np.where(self.waste_agent_map != 0)[0][-1] - np.where(self.waste_agent_map != 0)[0][0] if len(np.where(self.waste_agent_map != 0)[0]) > 0 else 0,
         }
 
         if self.timestamp == 1000:
